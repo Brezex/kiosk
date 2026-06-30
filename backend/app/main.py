@@ -214,29 +214,43 @@ async def kiosk_notifications():
 if FRONTEND_DIST.exists() and (FRONTEND_DIST / "assets").exists():
     logger.info(f"Serving frontend from {FRONTEND_DIST}")
     
+    # Монтируем статику
     app.mount("/assets", StaticFiles(directory=FRONTEND_DIST / "assets"), name="assets")
     
+    # Корневой маршрут - отдаём index.html
+    @app.get("/")
+    async def serve_root():
+        """Отдаёт index.html для корневого пути"""
+        index_path = FRONTEND_DIST / "index.html"
+        if index_path.exists():
+            return FileResponse(index_path)
+        return {"detail": "Frontend not built"}
+    
+    # Все остальные пути - для SPA роутинга
     @app.get("/{full_path:path}")
     async def serve_frontend(full_path: str):
-        """Раздача файлов фронтенда"""
-        # Не перехватываем API запросы
-        if full_path.startswith("api/") or full_path.startswith("docs") or full_path.startswith("openapi"):
+        """Раздача файлов фронтенда для SPA роутинга"""
+        # Не перехватываем API запросы и docs
+        if (full_path.startswith("api/") or 
+            full_path.startswith("docs") or 
+            full_path.startswith("openapi") or
+            full_path.startswith("assets/")):
             return {"detail": "Not found"}
         
+        # Пробуем найти файл
         file_path = FRONTEND_DIST / full_path
         
-        # Если файл существует - отдаём его
         if file_path.exists() and file_path.is_file():
             return FileResponse(file_path)
         
-        # Иначе отдаём index.html (для SPA роутинга)
+        # Если файл не найден - отдаём index.html (для React Router)
         index_path = FRONTEND_DIST / "index.html"
         if index_path.exists():
             return FileResponse(index_path)
         
-        return {"detail": "Frontend not built"}
+        return {"detail": "File not found"}
 else:
-    logger.warning("Frontend dist not found, serving API only")
+    logger.warning("⚠️ Frontend dist not found at /frontend/dist, serving API only")
 
 
 # ============ Запуск ============

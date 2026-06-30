@@ -1,5 +1,7 @@
 from pathlib import Path
+from typing import List
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import field_validator
 
 
 class Settings(BaseSettings):
@@ -8,7 +10,7 @@ class Settings(BaseSettings):
     DB_PATH: Path = BASE_DIR / "zabbix_kiosk.db"
     
     # База данных
-    DATABASE_URL: str = "sqlite:///./zabbix_kiosk.db"
+    DATABASE_URL: str = "sqlite:///./data/zabbix_kiosk.db"
     
     # Безопасность
     SECRET_KEY: str = "change-this-to-a-very-secret-key-min-32-chars"
@@ -24,12 +26,15 @@ class Settings(BaseSettings):
     ZABBIX_RETRY_DELAY: int = 5
     ZABBIX_CACHE_TTL: int = 300
     
-    # CORS
-    CORS_ORIGINS: list[str] = [
-        "http://localhost",
-        "http://localhost:5173",
-        "http://localhost:8000",
-    ]
+    # CORS - принимаем как строку, парсим в список
+    CORS_ORIGINS: str = "http://localhost,http://localhost:5173,http://localhost:8000"
+    
+    @property
+    def cors_origins_list(self) -> List[str]:
+        """Парсинг CORS_ORIGINS в список."""
+        if isinstance(self.CORS_ORIGINS, list):
+            return self.CORS_ORIGINS
+        return [origin.strip() for origin in self.CORS_ORIGINS.split(",") if origin.strip()]
     
     model_config = SettingsConfigDict(
         env_file=".env",
