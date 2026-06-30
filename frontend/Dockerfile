@@ -1,59 +1,41 @@
-# Multi-stage build для оптимизации размера
-
-# Stage 1: Сборка фронтенда
+# Stage 1: Build frontend
 FROM node:20-alpine AS frontend-builder
 
-WORKDIR /app/frontend
+WORKDIR /build/frontend
 
-# Копируем package.json и package-lock.json
 COPY frontend/package*.json ./
-
-# Устанавливаем зависимости
 RUN npm ci
-
-# Копируем исходный код фронтенда
 COPY frontend/ ./
-
-# Собираем production-версию
 RUN npm run build
 
-# Stage 2: Backend + готовый фронтенд
+# Stage 2: Backend + frontend
 FROM python:3.11-slim
 
-WORKDIR /app
-
-# Устанавливаем системные зависимости
-RUN apt-get update && apt-get install -y \
-    gcc \
-    && rm -rf /var/lib/apt/lists/*
-
-# Копируем requirements.txt
-COPY backend/requirements.txt ./
-
-# Устанавливаем Python-зависимости
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Копируем backend код
-COPY backend/ ./backend/
-
-# Копируем собранный фронтенд из stage 1
-COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
-
-# Создаём директорию для данных
-RUN mkdir -p /app/data
-
-# Устанавливаем переменные окружения
-ENV PYTHONPATH=/app
+ENV DEBIAN_FRONTEND=noninteractive
+ENV TERM=xterm
 ENV PYTHONUNBUFFERED=1
+ENV PYTHONPATH=/app
 ENV DATABASE_URL=sqlite:///./data/zabbix_kiosk.db
 ENV SECRET_KEY=change-this-in-production-very-secret-key-min-32-chars
 ENV PORT=8000
 
-# Открываем порт
-EXPOSE 8000
+WORKDIR /app
 
-# Рабочая директория
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    gcc curl && \
+    rm -rf /var/lib/apt/lists/*
+
+COPY backend/requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY backend/ ./backend/
+COPY --from=frontend-builder /build/frontend/dist ./frontend/dist
+
+RUN mkdir -p /app/data
+
 WORKDIR /app/backend
 
-# Команда запуска
-CMD ["sh", "-c", "python -m uvicorn app.main:app --host 0.0.0.0 --port ${PORT}"]
+EXPOSE 8000
+
+CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
