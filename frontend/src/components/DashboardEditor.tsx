@@ -14,10 +14,12 @@ export default function DashboardEditor({ dashboardId, onBack, isAdmin = true }:
   const [editingPanel, setEditingPanel] = useState<any>(null);
   const { zabbixServers } = useStore();
   
-  const loadDashboard = async () => {
-    const res = await dashboardsApi.get(dashboardId);
-    setDashboard(res.data);
-  };
+const loadDashboard = async () => {
+  const res = await dashboardsApi.get(dashboardId);
+  console.log('📊 Dashboard data:', res.data);
+  console.log('📊 Panels:', res.data.panels);
+  setDashboard(res.data);
+};
   
   useEffect(() => {
     loadDashboard();

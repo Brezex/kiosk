@@ -24,6 +24,7 @@ class UserResponse(BaseModel):
     username: str
     role: str
     must_change_password: bool
+    created_at: datetime 
 
     class Config:
         from_attributes = True
@@ -111,6 +112,8 @@ class DashboardResponse(BaseModel):
     sort_order: int
     rotation_interval: Optional[int]
     created_at: datetime
+    panels: List["PanelResponse"] = [] 
+    zabbix_server: Optional["ZabbixServerResponse"] = None  #
 
     class Config:
         from_attributes = True
@@ -133,6 +136,9 @@ class PanelUpdate(BaseModel):
     config: Optional[Dict[str, Any]] = None
 
 
+from pydantic import field_validator
+import json
+
 class PanelResponse(BaseModel):
     id: int
     dashboard_id: int
@@ -142,6 +148,13 @@ class PanelResponse(BaseModel):
     size: int
     config: Dict[str, Any]
     created_at: datetime
+
+    @field_validator('config', mode='before')
+    @classmethod
+    def parse_config(cls, v):
+        if isinstance(v, str):
+            return json.loads(v)
+        return v
 
     class Config:
         from_attributes = True
@@ -206,6 +219,60 @@ class ScheduledNotificationResponse(BaseModel):
     notification_type: str
     is_active: bool
     is_sent: bool
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+        from typing import Optional
+
+class UserCreate(BaseModel):
+    username: str
+    password: str
+    role: str = "viewer"
+    must_change_password: bool = True
+
+
+class UserUpdate(BaseModel):
+    username: Optional[str] = None
+    password: Optional[str] = None
+    role: Optional[str] = None
+    must_change_password: Optional[bool] = None
+
+
+class UserResponse(BaseModel):
+    id: int
+    username: str
+    role: str
+    must_change_password: bool
+    created_at: datetime  # ← datetime!
+
+    class Config:
+        from_attributes = True
+
+        from datetime import datetime
+from typing import Optional
+
+
+class UserCreate(BaseModel):
+    username: str
+    password: str
+    role: str = "viewer"
+    must_change_password: bool = True
+
+
+class UserUpdate(BaseModel):
+    username: Optional[str] = None
+    password: Optional[str] = None
+    role: Optional[str] = None
+    must_change_password: Optional[bool] = None
+
+
+class UserResponse(BaseModel):
+    id: int
+    username: str
+    role: str
+    must_change_password: bool
     created_at: datetime
 
     class Config:

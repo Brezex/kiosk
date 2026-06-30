@@ -1,255 +1,104 @@
 #!/bin/bash
-# ============================================================================
-# Zabbix Kiosk — установочный скрипт для Debian 12
-# ============================================================================
+
 set -e
 
-APP_NAME="zabbix-kiosk"
-APP_DIR="/opt/${APP_NAME}"
-CONFIG_DIR="/etc/${APP_NAME}"
-CONFIG_FILE="${CONFIG_DIR}/config.env"
-DATA_DIR="${APP_DIR}/data"
-SERVICE_USER="${APP_NAME}"
-PORT=3001
+echo "🚀 Установка Zabbix Kiosk на Debian 12..."
 
-# Цвета для вывода
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-NC='\033[0m'
+# Проверка прав root
+if [ "$EUID" -ne 0 ]; then 
+    echo "❌ Пожалуйста, запустите скрипт с правами root (sudo)"
+    exit 1
+fi
 
-log()  { echo -e "${GREEN}[INFO]${NC} $1"; }
-warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
-err()  { echo -e "${RED}[ERROR]${NC} $1" >&2; }
+# Переменные
+APP_DIR="/opt/zabbix-kiosk"
+APP_USER="kiosk"
+PYTHON_VERSION="3.11"
 
-# ============ Проверки ============
-check_root() {
-    if [ "$EUID" -ne 0 ]; then
-        err "Скрипт нужно запускать от root (sudo)"
-        exit 1
-    fi
-}
+# 1. Установка зависимостей
+echo "📦 Установка системных зависимостей..."
+apt-get update
+apt-get install -y \
+    python${PYTHON_VERSION} \
+    python${PYTHON_VERSION}-venv \
+    python3-pip \
+    nodejs \
+    npm \
+    curl \
+    git
 
-check_os() {
-    if [ -f /etc/os-release ]; then
-        . /etc/os-release
-        if [ "$ID" != "debian" ]; then
-            warn "Скрипт рассчитан на Debian. Текущая ОС: $ID. Продолжаем..."
-        else
-            log "ОС: $PRETTY_NAME"
-        fi
-    fi
-}
+# 2. Создание пользователя
+echo "👤 Создание пользователя ${APP_USER}..."
+if ! id "${APP_USER}" &>/dev/null; then
+    useradd -r -s /bin/false -m -d ${APP_DIR} ${APP_USER}
+fi
 
-# ============ Установка зависимостей ============
-install_dependencies() {
-    log "Обновление пакетов..."
-    apt-get update -qq
-    
-    log "Установка необходимых пакетов..."
-    apt-get install -y -qq \
-        ca-certificates \
-        curl \
-        gnupg \
-        lsb-release \
-        git \
-        ufw \
-        openssl
-    
-    # Docker
-    if ! command -v docker &> /dev/null; then
-        log "Установка Docker..."
-        install -m 0755 -d /etc/apt/keyrings
-        curl -fsSL https://download.docker.com/linux/debian/gpg | \
-            gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-        chmod a+r /etc/apt/keyrings/docker.gpg
-        
-        echo \
-          "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
-          https://download.docker.com/linux/debian \
-          $(lsb_release -cs) stable" | \
-          tee /etc/apt/sources.list.d/docker.list > /dev/null
-        
-        apt-get update -qq
-        apt-get install -y -qq docker-ce docker-ce-cli containerd.io docker-compose-plugin
-        
-        systemctl enable docker
-        systemctl start docker
-        log "Docker установлен: $(docker --version)"
-    else
-        log "Docker уже установлен: $(docker --version)"
-    fi
-    
-    # Docker Compose (если нет плагина)
-    if ! docker compose version &> /dev/null; then
-        log "Установка Docker Compose..."
-        COMPOSE_VERSION=$(curl -s https://api.github.com/repos/docker/compose/releases/latest | grep tag_name | cut -d '"' -f 4)
-        curl -L "https://github.com/docker/compose/releases/download/${COMPOSE_VERSION}/docker-compose-$(uname -s)-$(uname -m)" \
-            -o /usr/local/bin/docker-compose
-        chmod +x /usr/local/bin/docker-compose
-    fi
-}
+# 3. Создание директории
+echo "📁 Создание директории ${APP_DIR}..."
+mkdir -p ${APP_DIR}
+chown ${APP_USER}:${APP_USER} ${APP_DIR}
 
-# ============ Создание пользователя ============
-create_user() {
-    if ! id -u "${SERVICE_USER}" &>/dev/null; then
-        log "Создание пользователя ${SERVICE_USER}..."
-        useradd -r -m -d "${APP_DIR}" -s /usr/sbin/nologin "${SERVICE_USER}"
-    else
-        log "Пользователь ${SERVICE_USER} уже существует"
-    fi
-}
+# 4. Копирование файлов
+echo "📂 Копирование файлов..."
+cp -r backend ${APP_DIR}/
+cp -r frontend ${APP_DIR}/
+cp requirements.txt ${APP_DIR}/backend/ 2>/dev/null || true
 
-# ============ Генерация секретного ключа ============
-generate_secret() {
-    if [ ! -f "${CONFIG_FILE}" ]; then
-        log "Генерация секретного ключа..."
-        # 32 байта в base64 для Fernet
-        SECRET=$(openssl rand -base64 32)
-        
-        mkdir -p "${CONFIG_DIR}"
-        cat > "${CONFIG_FILE}" <<EOF
-# Zabbix Kiosk configuration
-# Сгенерировано автоматически при установке
+# 5. Сборка фронтенда
+echo "🎨 Сборка фронтенда..."
+cd ${APP_DIR}/frontend
+npm install
+npm run build
+chown -R ${APP_USER}:${APP_USER} ${APP_DIR}
 
-SECRET_KEY=${SECRET}
-DATABASE_URL=sqlite+aiosqlite:////data/app.db
-KIOSK_ROTATION_INTERVAL=30
-KIOSK_NOTIFICATION_POLL_INTERVAL=10
-ZABBIX_REQUEST_TIMEOUT=10
-LOG_LEVEL=INFO
-DATA_DIR=${DATA_DIR}
-EOF
-        chmod 600 "${CONFIG_FILE}"
-        log "Конфиг создан: ${CONFIG_FILE}"
-    else
-        log "Конфиг уже существует: ${CONFIG_FILE}"
-    fi
-}
+# 6. Создание виртуального окружения Python
+echo "🐍 Создание виртуального окружения Python..."
+cd ${APP_DIR}
+python${PYTHON_VERSION} -m venv venv
+chown -R ${APP_USER}:${APP_USER} venv
 
-# ============ Копирование файлов ============
-copy_files() {
-    log "Копирование файлов в ${APP_DIR}..."
-    
-    # Если скрипт запущен из директории проекта
-    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-    
-    if [ -f "${SCRIPT_DIR}/docker-compose.yml" ]; then
-        mkdir -p "${APP_DIR}"
-        cp -r "${SCRIPT_DIR}/backend" "${APP_DIR}/"
-        cp -r "${SCRIPT_DIR}/frontend" "${APP_DIR}/"
-        cp "${SCRIPT_DIR}/docker-compose.yml" "${APP_DIR}/"
-        cp "${SCRIPT_DIR}/nginx.conf" "${APP_DIR}/"
-        cp "${SCRIPT_DIR}/zabbix-kiosk.service" /etc/systemd/system/ 2>/dev/null || true
-        
-        chown -R "${SERVICE_USER}:${SERVICE_USER}" "${APP_DIR}"
-        log "Файлы скопированы"
-    else
-        warn "docker-compose.yml не найден в ${SCRIPT_DIR}"
-        warn "Убедитесь, что скрипт запущен из директории проекта"
-    fi
-}
+# 7. Установка Python-зависимостей
+echo "📦 Установка Python-зависимостей..."
+sudo -u ${APP_USER} ${APP_DIR}/venv/bin/pip install --upgrade pip
+sudo -u ${APP_USER} ${APP_DIR}/venv/bin/pip install -r backend/requirements.txt
 
-# ============ Сборка Docker-образов ============
-build_images() {
-    log "Сборка Docker-образов (это может занять несколько минут)..."
-    cd "${APP_DIR}"
-    
-    # Сборка бэкенда
-    docker compose build backend
-    
-    # Сборка фронтенда и копирование статики в бэкенд
-    log "Сборка фронтенда..."
-    docker run --rm -v "${APP_DIR}/frontend:/app" -w /app node:20-alpine sh -c "
-        npm install --silent && npm run build
-    "
-    
-    log "Образы собраны"
-}
+# 8. Создание директории для данных
+echo "💾 Создание директории для данных..."
+mkdir -p ${APP_DIR}/data
+chown ${APP_USER}:${APP_USER} ${APP_DIR}/data
 
-# ============ Создание директорий ============
-create_dirs() {
-    mkdir -p "${DATA_DIR}"
-    chown -R "${SERVICE_USER}:${SERVICE_USER}" "${DATA_DIR}"
-    log "Директория данных: ${DATA_DIR}"
-}
+# 9. Создание администратора
+echo "👑 Создание администратора..."
+cd ${APP_DIR}/backend
+sudo -u ${APP_USER} ${APP_DIR}/venv/bin/python create_admin.py
 
-# ============ Настройка UFW ============
-setup_firewall() {
-    if command -v ufw &> /dev/null; then
-        log "Настройка UFW: открытие порта ${PORT}..."
-        ufw allow ${PORT}/tcp comment "Zabbix Kiosk" || true
-        # Включаем UFW, если он выключен
-        ufw --force enable || true
-    else
-        warn "UFW не установлен. Пропускаем настройку firewall."
-    fi
-}
+# 10. Установка systemd service
+echo "⚙️  Установка systemd service..."
+cp zabbix-kiosk.service /etc/systemd/system/
+systemctl daemon-reload
+systemctl enable zabbix-kiosk
+systemctl start zabbix-kiosk
 
-# ============ Запуск systemd-сервиса ============
-setup_service() {
-    log "Настройка systemd-сервиса..."
-    systemctl daemon-reload
-    systemctl enable "${APP_NAME}.service"
-    systemctl restart "${APP_NAME}.service"
-    
-    # Ждём запуска
-    sleep 5
-    
-    if systemctl is-active --quiet "${APP_NAME}.service"; then
-        log "✅ Сервис запущен"
-    else
-        warn "Сервис не запустился. Проверьте: journalctl -u ${APP_NAME}.service"
-    fi
-}
+# 11. Настройка firewall (если ufw активен)
+if command -v ufw &> /dev/null; then
+    echo "🔥 Настройка firewall..."
+    ufw allow 8000/tcp
+fi
 
-# ============ Вывод итоговой информации ============
-print_summary() {
-    echo ""
-    echo "============================================================"
-    echo -e "${GREEN}✅ Zabbix Kiosk успешно установлен!${NC}"
-    echo "============================================================"
-    echo ""
-    echo "📍 Адрес:        http://$(hostname -I | awk '{print $1}'):${PORT}"
-    echo "📍 Kiosk mode:   http://$(hostname -I | awk '{print $1}'):${PORT}/kiosk"
-    echo "📍 Admin panel:  http://$(hostname -I | awk '{print $1}'):${PORT}/admin"
-    echo ""
-    echo "🔐 Логин по умолчанию: admin"
-    echo "🔑 Пароль по умолчанию: admin"
-    echo "⚠️  При первом входе система попросит сменить пароль!"
-    echo ""
-    echo "📁 Директория приложения: ${APP_DIR}"
-    echo "📁 Конфигурация:          ${CONFIG_FILE}"
-    echo "📁 База данных:           ${DATA_DIR}/app.db"
-    echo ""
-    echo "🛠️  Команды управления:"
-    echo "   systemctl status  ${APP_NAME}    # Статус"
-    echo "   systemctl restart ${APP_NAME}    # Перезапуск"
-    echo "   journalctl -u ${APP_NAME} -f     # Логи"
-    echo ""
-    echo "📖 Документация: ${APP_DIR}/README.md"
-    echo "============================================================"
-}
-
-# ============ Основной поток ============
-main() {
-    echo ""
-    echo "============================================================"
-    echo "   Zabbix Kiosk — установка"
-    echo "============================================================"
-    echo ""
-    
-    check_root
-    check_os
-    install_dependencies
-    create_user
-    generate_secret
-    copy_files
-    create_dirs
-    build_images
-    setup_firewall
-    setup_service
-    print_summary
-}
-
-main "$@"
+echo ""
+echo "✅ Установка завершена!"
+echo ""
+echo "📊 Статус сервиса:"
+systemctl status zabbix-kiosk --no-pager
+echo ""
+echo "🌐 Доступ:"
+echo "   Админка: http://$(hostname -I | awk '{print $1}'):8000"
+echo "   API Docs: http://$(hostname -I | awk '{print $1}'):8000/docs"
+echo ""
+echo "🔧 Управление сервисом:"
+echo "   systemctl start zabbix-kiosk    # Запустить"
+echo "   systemctl stop zabbix-kiosk     # Остановить"
+echo "   systemctl restart zabbix-kiosk  # Перезапустить"
+echo "   systemctl status zabbix-kiosk   # Статус"
+echo "   journalctl -u zabbix-kiosk -f   # Логи"
+echo ""

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import Calendar from 'react-calendar';
 import 'react-calendar/dist/Calendar.css';
+import '../calendar-dark.css';
 import { notificationsApi } from '../api/client';
 
 interface Notification {
@@ -94,10 +95,10 @@ export default function NotificationsPage() {
             }}
             value={selectedDate}
             locale="ru-RU"
-            tileClassName={({ date }) => {
-              const hasNotifications = getNotificationsForDate(date).length > 0;
-              return hasNotifications ? 'bg-blue-900/50 text-white' : '';
-            }}
+tileClassName={({ date }) => {
+  const hasNotifications = getNotificationsForDate(date).length > 0;
+  return hasNotifications ? 'has-notifications' : '';
+}}
           />
         </div>
 

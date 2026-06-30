@@ -88,3 +88,11 @@ export const notificationsApi = {
 };
 
 export default api;
+
+export const usersApi = {
+  list: () => api.get('/users'),
+  create: (data: any) => api.post('/users', data),
+  update: (id: number, data: any) => api.put(`/users/${id}`, data),
+  delete: (id: number) => api.delete(`/users/${id}`),
+  resetPassword: (id: number) => api.post(`/users/${id}/reset-password`),
+};

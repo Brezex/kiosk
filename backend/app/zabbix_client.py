@@ -22,7 +22,7 @@ def _get_fernet() -> Fernet:
         # Если ключ не подходит — генерируем детерминированный из него
         import base64
         import hashlib
-        key_bytes = hashlib.sha256(settings.secret_key.encode()).digest()
+        key_bytes = hashlib.sha256(settings.SECRET_KEY.encode()).digest()
         fernet_key = base64.urlsafe_b64encode(key_bytes)
         _fernet = Fernet(fernet_key)
     return _fernet
@@ -72,7 +72,7 @@ class ZabbixClient:
             headers = {}
         
         last_error: Optional[Exception] = None
-        for attempt in range(settings.zabbix_retry_count + 1):
+        for attempt in range(settings.ZABBIX_RETRY_COUNT + 1):
             try:
                 async with httpx.AsyncClient(timeout=timeout, verify=False) as client:
                     response = await client.post(
@@ -94,7 +94,7 @@ class ZabbixClient:
                 logger.warning(
                     f"Zabbix API call {method} failed (attempt {attempt+1}): {e}"
                 )
-                if attempt < settings.zabbix_retry_count:
+                if attempt < settings.ZABBIX_RETRY_COUNT:
                     await asyncio.sleep(1 * (attempt + 1))
         
         raise last_error or RuntimeError("Zabbix API call failed")

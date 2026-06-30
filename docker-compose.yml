@@ -1,44 +1,27 @@
+version: '3.8'
 
 services:
-  backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: zabbix-kiosk-backend
+  zabbix-kiosk:
+    build: .
+    container_name: zabbix-kiosk
     restart: unless-stopped
-    env_file:
-      - /etc/zabbix-kiosk/config.env
-    environment:
-      - DATABASE_URL=sqlite+aiosqlite:////data/app.db
+    ports:
+      - "8000:8000"
     volumes:
-      - app-data:/data
-      - ./frontend/dist:/app/frontend/dist:ro
-    networks:
-      - kiosk-net
+      # Persist database
+      - kiosk-data:/app/data
+    environment:
+      - SECRET_KEY=${SECRET_KEY:-change-this-in-production-very-secret-key-min-32-chars}
+      - DATABASE_URL=sqlite:///./data/zabbix_kiosk.db
+      - PORT=8000
+      - CORS_ORIGINS=http://localhost,http://localhost:8000,http://your-domain.com
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
       timeout: 10s
       retries: 3
-
-  nginx:
-    image: nginx:1.25-alpine
-    container_name: zabbix-kiosk-nginx
-    restart: unless-stopped
-    ports:
-      - "3001:3001"
-    volumes:
-      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
-    depends_on:
-      backend:
-        condition: service_healthy
-    networks:
-      - kiosk-net
+      start_period: 40s
 
 volumes:
-  app-data:
+  kiosk-data:
     driver: local
-
-networks:
-  kiosk-net:
-    driver: bridge

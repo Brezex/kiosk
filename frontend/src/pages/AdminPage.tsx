@@ -5,8 +5,9 @@ import { dashboardsApi } from '../api/client';
 import DashboardEditor from '../components/DashboardEditor';
 import ZabbixServerManager from '../components/ZabbixServerManager';
 import NotificationsPage from './NotificationsPage';
+import UsersPage from './UsersPage';
 
-type Tab = 'dashboards' | 'servers' | 'notifications';
+type Tab = 'dashboards' | 'servers' | 'notifications' | 'users';
 
 export default function AdminPage() {
   const { isAuthenticated, checkAuth, user, logout, loadDashboards, loadServers } = useStore();
@@ -86,6 +87,14 @@ export default function AdminPage() {
               >
                 🔔 Уведомления
               </button>
+              <button
+  onClick={() => setTab('users')}
+  className={`w-full text-left px-4 py-3 rounded-lg text-lg transition ${
+    tab === 'users' ? 'bg-blue-600 text-white' : 'text-slate-300 hover:bg-slate-700'
+  }`}
+>
+  👥 Пользователи
+</button>
             </>
           )}
 
@@ -132,7 +141,8 @@ export default function AdminPage() {
           />
         )}
         {isAdmin && tab === 'servers' && <ZabbixServerManager onRefresh={loadServers} />}
-        {isAdmin && tab === 'notifications' && <NotificationsPage />}
+{isAdmin && tab === 'notifications' && <NotificationsPage />}
+{isAdmin && tab === 'users' && <UsersPage />}
       </main>
     </div>
   );

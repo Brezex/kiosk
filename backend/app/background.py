@@ -51,11 +51,6 @@ def start_notification_checker():
     """Запускает фоновую проверку уведомлений"""
     asyncio.create_task(check_notifications())
 
-def start_notification_checker():
-    """Запускает фоновую проверку уведомлений"""
-    asyncio.create_task(check_notifications())
-
-
 def start_background_poller():
     """Запускает фоновый опрос Zabbix-серверов"""
     asyncio.create_task(background_poller())

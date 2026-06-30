@@ -18,6 +18,12 @@ class Settings(BaseSettings):
     # Шифрование токенов Zabbix
     ENCRYPTION_KEY: str = "change-this-encryption-key-32-chars!!"
     
+    # Zabbix настройки
+    ZABBIX_TIMEOUT: int = 30
+    ZABBIX_RETRY_COUNT: int = 3
+    ZABBIX_RETRY_DELAY: int = 5
+    ZABBIX_CACHE_TTL: int = 300
+    
     # CORS
     CORS_ORIGINS: list[str] = [
         "http://localhost",

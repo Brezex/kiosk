@@ -10,7 +10,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
 from app.database import init_db
-from app.routers import auth, dashboards, proxy, zabbix_servers, notifications
+from app.routers import auth, dashboards, panels, proxy, zabbix_servers, notifications, users
 
 # Настройка логирования
 logging.basicConfig(
@@ -80,8 +80,10 @@ async def health_check():
 app.include_router(auth.router)
 app.include_router(dashboards.router)
 app.include_router(proxy.router)
+app.include_router(panels.router)
 app.include_router(zabbix_servers.router)
 app.include_router(notifications.router)
+app.include_router(users.router)
 
 
 # ============ Kiosk Public Routes ============
