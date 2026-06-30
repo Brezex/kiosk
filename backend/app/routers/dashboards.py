@@ -1,7 +1,7 @@
-"""Роутер дашбордов."""
+"""Роутер дашбордов с поддержкой личных дашбордов."""
 from typing import List
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import select, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -9,20 +9,39 @@ from app.database import get_async_db
 from app.models import Dashboard, User
 from app.schemas import DashboardCreate, DashboardUpdate, DashboardResponse
 from app.auth import get_current_user, require_admin
+
 router = APIRouter(prefix="/api/dashboards", tags=["dashboards"])
 
 
 @router.get("", response_model=List[DashboardResponse])
 async def list_dashboards(
     db: AsyncSession = Depends(get_async_db),
-    _: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
+    personal: bool = Query(False, description="Показать только личные дашборды"),
 ):
-    """Список всех дашбордов."""
-    result = await db.execute(
-        select(Dashboard)
-        .options(selectinload(Dashboard.panels), selectinload(Dashboard.zabbix_server))
-        .order_by(Dashboard.sort_order, Dashboard.id)
-    )
+    """Список дашбордов: общие + личные текущего пользователя."""
+    if personal:
+        # Только личные дашборды текущего пользователя
+        result = await db.execute(
+            select(Dashboard)
+            .options(selectinload(Dashboard.panels), selectinload(Dashboard.zabbix_server))
+            .where(Dashboard.user_id == current_user.id)
+            .order_by(Dashboard.sort_order, Dashboard.id)
+        )
+    else:
+        # Общие (user_id is NULL) + личные текущего пользователя
+        result = await db.execute(
+            select(Dashboard)
+            .options(selectinload(Dashboard.panels), selectinload(Dashboard.zabbix_server))
+            .where(
+                or_(
+                    Dashboard.user_id == None,
+                    Dashboard.user_id == current_user.id
+                )
+            )
+            .order_by(Dashboard.sort_order, Dashboard.id)
+        )
+    
     return result.scalars().all()
 
 
@@ -30,10 +49,17 @@ async def list_dashboards(
 async def create_dashboard(
     data: DashboardCreate,
     db: AsyncSession = Depends(get_async_db),
-    _: User = Depends(require_admin),  # ← Было get_current_user
+    current_user: User = Depends(get_current_user),
+    personal: bool = Query(False, description="Создать личный дашборд"),
 ):
-    """Создание дашборда."""
-    dashboard = Dashboard(**data.model_dump())
+    """Создание дашборда. Если personal=True — личный, иначе общий (только для admin)."""
+    # Если пользователь не admin — всегда создаём личный
+    user_id = current_user.id if (personal or current_user.role != "admin") else None
+    
+    dashboard = Dashboard(
+        **data.model_dump(),
+        user_id=user_id
+    )
     db.add(dashboard)
     await db.flush()
     await db.refresh(dashboard, attribute_names=["panels", "zabbix_server"])
@@ -44,13 +70,19 @@ async def create_dashboard(
 async def get_dashboard(
     dashboard_id: int,
     db: AsyncSession = Depends(get_async_db),
-    _: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ):
-    """Получение дашборда."""
+    """Получение дашборда (общего или личного)."""
     result = await db.execute(
         select(Dashboard)
         .options(selectinload(Dashboard.panels), selectinload(Dashboard.zabbix_server))
-        .where(Dashboard.id == dashboard_id)
+        .where(
+            or_(
+                Dashboard.user_id == None,
+                Dashboard.user_id == current_user.id
+            ),
+            Dashboard.id == dashboard_id
+        )
     )
     dashboard = result.scalar_one_or_none()
     if not dashboard:
@@ -63,9 +95,9 @@ async def update_dashboard(
     dashboard_id: int,
     data: DashboardUpdate,
     db: AsyncSession = Depends(get_async_db),
-    _: User = Depends(require_admin),  # ← Было get_current_user
+    current_user: User = Depends(get_current_user),
 ):
-    """Обновление дашборда."""
+    """Обновление дашборда (только владелец или admin)."""
     result = await db.execute(
         select(Dashboard)
         .options(selectinload(Dashboard.panels), selectinload(Dashboard.zabbix_server))
@@ -74,6 +106,32 @@ async def update_dashboard(
     dashboard = result.scalar_one_or_none()
     if not dashboard:
         raise HTTPException(status_code=404, detail="Dashboard not found")
+    
+    # Проверка прав: только владелец или admin
+    if dashboard.user_id is not None and dashboard.user_id != current_user.id and current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    for k, v in data.model_dump(exclude_unset=True).items():
+        setattr(dashboard, k, v)
+    
+    db.add(dashboard)
+    await db.flush()
+    await db.refresh(dashboard)
+    return dashboard
+    
+    """Обновление дашборда (только владелец или admin)."""
+    result = await db.execute(
+        select(Dashboard)
+        .options(selectinload(Dashboard.panels), selectinload(Dashboard.zabbix_server))
+        .where(Dashboard.id == dashboard_id)
+    )
+    dashboard = result.scalar_one_or_none()
+    if not dashboard:
+        raise HTTPException(status_code=404, detail="Dashboard not found")
+    
+    # Проверка прав: только владелец или admin
+    if dashboard.user_id is not None and dashboard.user_id != current_user.id and current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Access denied")
     
     for k, v in data.model_dump(exclude_unset=True).items():
         setattr(dashboard, k, v)
@@ -88,13 +146,17 @@ async def update_dashboard(
 async def delete_dashboard(
     dashboard_id: int,
     db: AsyncSession = Depends(get_async_db),
-    _: User = Depends(require_admin),  # ← Было get_current_user
+    current_user: User = Depends(get_current_user),
 ):
-    """Удаление дашборда."""
+    """Удаление дашборда (только владелец или admin)."""
     result = await db.execute(select(Dashboard).where(Dashboard.id == dashboard_id))
     dashboard = result.scalar_one_or_none()
     if not dashboard:
         raise HTTPException(status_code=404, detail="Dashboard not found")
+    
+    # Проверка прав
+    if dashboard.user_id is not None and dashboard.user_id != current_user.id and current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Access denied")
     
     await db.delete(dashboard)
     return {"ok": True}
@@ -104,7 +166,7 @@ async def delete_dashboard(
 async def export_dashboard(
     dashboard_id: int,
     db: AsyncSession = Depends(get_async_db),
-    _: User = Depends(require_admin),
+    current_user: User = Depends(get_current_user),
 ):
     """Экспорт дашборда в JSON."""
     result = await db.execute(
@@ -142,7 +204,7 @@ async def export_dashboard(
 async def import_dashboard(
     payload: dict,
     db: AsyncSession = Depends(get_async_db),
-    _: User = Depends(require_admin),
+    current_user: User = Depends(get_current_user),
 ):
     """Импорт дашборда из JSON."""
     if "dashboard" not in payload:
@@ -155,6 +217,7 @@ async def import_dashboard(
         rotation_interval=d.get("rotation_interval"),
         in_rotation=d.get("in_rotation", True),
         sort_order=d.get("sort_order", 0),
+        user_id=current_user.id,  # Импортированный дашборд — личный
     )
     db.add(dashboard)
     await db.flush()

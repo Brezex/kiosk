@@ -7,13 +7,15 @@ from app.database import Base
 
 class User(Base):
     __tablename__ = "users"
-
-    id = Column(Integer, primary_key=True, index=True)
-    username = Column(String(50), unique=True, index=True, nullable=False)
-    hashed_password = Column(String(200), nullable=False)
-    role = Column(String(20), default="admin")
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    username = Column(String, unique=True, nullable=False)
+    hashed_password = Column(String, nullable=False)
+    role = Column(String, default="viewer")
     must_change_password = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+    
+    dashboards = relationship("Dashboard", back_populates="user")  # ← ДОБАВЛЕНО
 
 
 class ZabbixServer(Base):
@@ -31,17 +33,20 @@ class ZabbixServer(Base):
 
 class Dashboard(Base):
     __tablename__ = "dashboards"
-
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(200), nullable=False)
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String, nullable=False)
+    description = Column(String, nullable=True)
     zabbix_server_id = Column(Integer, ForeignKey("zabbix_servers.id"), nullable=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)  # ← ДОБАВЛЕНО
     in_rotation = Column(Boolean, default=True)
     sort_order = Column(Integer, default=0)
     rotation_interval = Column(Integer, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
-
-    zabbix_server = relationship("ZabbixServer", back_populates="dashboards")
+    
     panels = relationship("Panel", back_populates="dashboard", cascade="all, delete-orphan")
+    zabbix_server = relationship("ZabbixServer", back_populates="dashboards")
+    user = relationship("User", back_populates="dashboards")  # ← ДОБАВЛЕНО
 
 
 class Panel(Base):

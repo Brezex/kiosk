@@ -26,14 +26,11 @@ export default function AdminPage() {
       navigate('/login');
       return;
     }
-    if (isAuthenticated) {
-      loadDashboards();
-      if (isAdmin) {
-        loadServers();
-      }
-    } else if (!user) {
-      navigate('/login');
-    }
+if (isAuthenticated) {
+  loadDashboards();
+  // Загружаем серверы для всех пользователей (нужно для PanelEditor)
+  loadServers();
+}
   }, [isAuthenticated, user]);
 
   const { dashboards } = useStore();
@@ -68,7 +65,6 @@ export default function AdminPage() {
             📊 Дашборды
           </button>
           
-          {/* Показываем только для admin */}
           {isAdmin && (
             <>
               <button
@@ -88,13 +84,13 @@ export default function AdminPage() {
                 🔔 Уведомления
               </button>
               <button
-  onClick={() => setTab('users')}
-  className={`w-full text-left px-4 py-3 rounded-lg text-lg transition ${
-    tab === 'users' ? 'bg-blue-600 text-white' : 'text-slate-300 hover:bg-slate-700'
-  }`}
->
-  👥 Пользователи
-</button>
+                onClick={() => setTab('users')}
+                className={`w-full text-left px-4 py-3 rounded-lg text-lg transition ${
+                  tab === 'users' ? 'bg-blue-600 text-white' : 'text-slate-300 hover:bg-slate-700'
+                }`}
+              >
+                👥 Пользователи
+              </button>
             </>
           )}
 
@@ -104,7 +100,7 @@ export default function AdminPage() {
               target="_blank"
               className="block px-4 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg text-lg text-center transition"
             >
-              🖥️ Просмотр
+              ️ Просмотр
             </a>
           </div>
         </nav>
@@ -131,6 +127,7 @@ export default function AdminPage() {
             onSelect={setSelectedDashboardId}
             onRefresh={loadDashboards}
             isAdmin={isAdmin}
+            currentUserId={user?.id}
           />
         )}
         {tab === 'dashboards' && selectedDashboardId && (
@@ -141,23 +138,31 @@ export default function AdminPage() {
           />
         )}
         {isAdmin && tab === 'servers' && <ZabbixServerManager onRefresh={loadServers} />}
-{isAdmin && tab === 'notifications' && <NotificationsPage />}
-{isAdmin && tab === 'users' && <UsersPage />}
+        {isAdmin && tab === 'notifications' && <NotificationsPage />}
+        {isAdmin && tab === 'users' && <UsersPage />}
       </main>
     </div>
   );
 }
 
-function DashboardsList({ dashboards, onSelect, onRefresh, isAdmin }: any) {
+function DashboardsList({ dashboards, onSelect, onRefresh, isAdmin, currentUserId }: any) {
   const [showImport, setShowImport] = useState(false);
+  const [showPersonalOnly, setShowPersonalOnly] = useState(false);
   const [importJson, setImportJson] = useState('');
   const [showRotationSettings, setShowRotationSettings] = useState(false);
   const [rotationInterval, setRotationInterval] = useState(30);
 
   const handleCreate = async () => {
-    const name = prompt('Название дашборда:');
+    const name = prompt('Название общего дашборда:');
     if (!name) return;
-    await dashboardsApi.create({ name, in_rotation: true, sort_order: dashboards.length });
+    await dashboardsApi.create({ name, in_rotation: true, sort_order: dashboards.length }, false);
+    onRefresh();
+  };
+
+  const handleCreatePersonal = async () => {
+    const name = prompt('Название личного дашборда:');
+    if (!name) return;
+    await dashboardsApi.create({ name, in_rotation: false, sort_order: 0 }, true);
     onRefresh();
   };
 
@@ -201,90 +206,163 @@ function DashboardsList({ dashboards, onSelect, onRefresh, isAdmin }: any) {
     alert(`Интервал ротации изменён на ${rotationInterval} секунд`);
   };
 
+  // Фильтрация дашбордов
+  const filteredDashboards = dashboards.filter((d: any) => {
+    if (showPersonalOnly) {
+      return d.user_id === currentUserId;
+    }
+    return true; // Общие + личные текущего пользователя
+  });
+
   return (
     <div className="p-8">
       <div className="flex items-center justify-between mb-8">
         <h2 className="text-4xl font-bold text-white">Дашборды</h2>
         
-        {/* Кнопки действий показываем только для admin */}
-        {isAdmin && (
-          <div className="flex gap-3">
+        <div className="flex gap-3 items-center">
+          {/* Переключатель Общие/Мои */}
+          <div className="flex bg-slate-800 rounded-lg border border-slate-700 p-1">
             <button
-              onClick={() => setShowRotationSettings(true)}
-              className="px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-lg transition"
+              onClick={() => setShowPersonalOnly(false)}
+              className={`px-4 py-2 rounded-md text-base transition ${
+                !showPersonalOnly ? 'bg-blue-600 text-white' : 'text-slate-300 hover:bg-slate-700'
+              }`}
             >
-              ⏱️ Настройки ротации
+              🌐 Общие
             </button>
             <button
-              onClick={() => setShowImport(true)}
-              className="px-6 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-lg transition"
+              onClick={() => setShowPersonalOnly(true)}
+              className={`px-4 py-2 rounded-md text-base transition ${
+                showPersonalOnly ? 'bg-blue-600 text-white' : 'text-slate-300 hover:bg-slate-700'
+              }`}
             >
-              📥 Импорт
-            </button>
-            <button
-              onClick={handleCreate}
-              className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-lg transition"
-            >
-              ➕ Создать
+              👤 Мои
             </button>
           </div>
-        )}
+          
+<div className="flex gap-3">
+  {/* Кнопки только для admin */}
+  {isAdmin && (
+    <>
+      <button
+        onClick={() => setShowRotationSettings(true)}
+        className="px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-lg transition"
+      >
+        ⏱️ Настройки ротации
+      </button>
+      <button
+        onClick={() => setShowImport(true)}
+        className="px-6 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-lg transition"
+      >
+        📥 Импорт
+      </button>
+      <button
+        onClick={handleCreate}
+        className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-lg transition"
+      >
+         Создать общий
+      </button>
+    </>
+  )}
+  
+  {/* Кнопка "Создать личный" — для всех пользователей */}
+  <button
+    onClick={handleCreatePersonal}
+    className="px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg text-lg transition"
+  >
+    ➕ Создать личный
+  </button>
+</div>
+        </div>
       </div>
 
-      {dashboards.length === 0 ? (
+      {filteredDashboards.length === 0 ? (
         <div className="text-center py-16 text-slate-400 text-xl">
-          {isAdmin ? 'Нет дашбордов. Создайте первый!' : 'Нет доступных дашбордов'}
+          {showPersonalOnly 
+            ? 'У вас нет личных дашбордов. Создайте первый!' 
+            : (isAdmin ? 'Нет дашбордов. Создайте первый!' : 'Нет доступных дашбордов')}
         </div>
       ) : (
         <div className="grid gap-4">
-          {dashboards.map((d: any) => (
+          {filteredDashboards.map((d: any) => (
             <div
               key={d.id}
               className="bg-slate-800 border border-slate-700 rounded-xl p-6 flex items-center justify-between hover:border-blue-500 transition cursor-pointer"
               onClick={() => onSelect(d.id)}
             >
               <div className="flex-1">
-                <h3 className="text-2xl font-semibold text-white mb-1">{d.name}</h3>
+                <div className="flex items-center gap-3 mb-1">
+                  <h3 className="text-2xl font-semibold text-white">{d.name}</h3>
+                  {d.user_id && (
+                    <span className="px-2 py-1 bg-green-600 text-white text-xs rounded">
+                      👤 Личный
+                    </span>
+                  )}
+                  {!d.user_id && (
+                    <span className="px-2 py-1 bg-blue-600 text-white text-xs rounded">
+                      🌐 Общий
+                    </span>
+                  )}
+                </div>
                 <div className="text-slate-400 text-base">
                   {d.panels?.length || 0} панелей · Zabbix: {d.zabbix_server?.name || 'не выбран'}
                   {d.rotation_interval && ` · Ротация: ${d.rotation_interval}с`}
                 </div>
               </div>
               
-              {/* Кнопки действий показываем только для admin */}
-              {isAdmin && (
-                <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
-                  <button
-                    onClick={() => handleToggleRotation(d)}
-                    className={`px-4 py-2 rounded-lg text-base transition ${
-                      d.in_rotation
-                        ? 'bg-green-600 hover:bg-green-700 text-white'
-                        : 'bg-slate-700 hover:bg-slate-600 text-slate-300'
-                    }`}
-                    title="Участие в ротации"
-                  >
-                    {d.in_rotation ? '✓ В ротации' : '○ Не в ротации'}
-                  </button>
-                  <button
-                    onClick={() => handleExport(d.id)}
-                    className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-base transition"
-                  >
-                    📤
-                  </button>
-                  <button
-                    onClick={() => handleDelete(d.id, d.name)}
-                    className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-base transition"
-                  >
-                    🗑️
-                  </button>
-                </div>
-              )}
+{(isAdmin || d.user_id === currentUserId) && (
+  <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
+    {/* Кнопка просмотра в режиме киоска */}
+
+    
+    {/* Остальные кнопки... */}
+    {/* Кнопка просмотра — для всех, кто имеет доступ */}
+    <button
+      onClick={() => window.open(`/kiosk?dashboard=${d.id}`, '_blank')}
+      className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-base transition"
+      title="Просмотр в режиме киоска"
+    >
+      ️ Просмотр
+    </button>
+    
+    {/* Ротация — только для admin */}
+    {isAdmin && (
+      <button
+        onClick={() => handleToggleRotation(d)}
+        className={`px-4 py-2 rounded-lg text-base transition ${
+          d.in_rotation
+            ? 'bg-blue-600 hover:bg-blue-700 text-white'
+            : 'bg-slate-700 hover:bg-slate-600 text-slate-300'
+        }`}
+        title="Участие в ротации"
+      >
+        {d.in_rotation ? '✓ В ротации' : '○ Не в ротации'}
+      </button>
+    )}
+    {/* Экспорт — для admin и владельца */}
+    <button
+      onClick={() => handleExport(d.id)}
+      className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-base transition"
+      title="Экспорт"
+    >
+      📤
+    </button>
+    {/* Удаление — для admin и владельца */}
+    <button
+      onClick={() => handleDelete(d.id, d.name)}
+      className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-base transition"
+      title="Удалить"
+    >
+      🗑️
+    </button>
+  </div>
+)}
             </div>
           ))}
         </div>
       )}
 
-      {/* Модальное окно импорта - только для admin */}
+      {/* Модальное окно импорта */}
       {isAdmin && showImport && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50">
           <div className="bg-slate-800 rounded-2xl p-6 w-full max-w-2xl border border-slate-700">
@@ -313,7 +391,7 @@ function DashboardsList({ dashboards, onSelect, onRefresh, isAdmin }: any) {
         </div>
       )}
 
-      {/* Модальное окно настроек ротации - только для admin */}
+      {/* Модальное окно настроек ротации */}
       {isAdmin && showRotationSettings && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50">
           <div className="bg-slate-800 border border-slate-700 rounded-2xl p-6 w-full max-w-md">

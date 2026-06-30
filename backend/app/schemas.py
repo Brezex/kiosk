@@ -108,12 +108,13 @@ class DashboardResponse(BaseModel):
     id: int
     name: str
     zabbix_server_id: Optional[int]
+    user_id: Optional[int] = None  # ← ДОБАВЛЕНО
     in_rotation: bool
     sort_order: int
     rotation_interval: Optional[int]
     created_at: datetime
-    panels: List["PanelResponse"] = [] 
-    zabbix_server: Optional["ZabbixServerResponse"] = None  #
+    panels: List["PanelResponse"] = []
+    zabbix_server: Optional["ZabbixServerResponse"] = None
 
     class Config:
         from_attributes = True

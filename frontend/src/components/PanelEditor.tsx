@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { proxyApi } from '../api/client';
+import { useStore } from '../store/useStore';
 import MatrixEditor from './MatrixEditor';
 
 interface Props {
@@ -9,11 +10,35 @@ interface Props {
   onClose: () => void;
 }
 
-export default function PanelEditor({ panel, serverId, onSave, onClose }: Props) {
+export default function PanelEditor({ panel, serverId: initialServerId, onSave, onClose }: Props) {
+  const { zabbixServers } = useStore();
+  
+  // Внутренний serverId может переопределяться пользователем
+  const [serverId, setServerId] = useState<number | undefined>(
+    panel.config?.server_id || initialServerId
+  );
+  
   const [form, setForm] = useState({ ...panel, config: { ...panel.config } });
   const [hosts, setHosts] = useState<any[]>([]);
   const [items, setItems] = useState<any[]>([]);
   const [showMatrixEditor, setShowMatrixEditor] = useState(false);
+
+  // При смене сервера - сбрасываем host и item
+useEffect(() => {
+  setForm((prev: any) => ({
+    ...prev,
+    config: {
+      ...prev.config,
+      server_id: serverId,
+      host_id: '',
+      item_id: '',
+      item_name: '',
+      units: '',
+    }
+  }));
+  setHosts([]);
+  setItems([]);
+}, [serverId]);
 
   // Загрузка хостов при наличии serverId
   useEffect(() => {
@@ -35,9 +60,20 @@ export default function PanelEditor({ panel, serverId, onSave, onClose }: Props)
   };
 
   const handleSave = () => {
-    console.log('💾 Сохранение панели:', form);
-    onSave(form);
+    // Сохраняем server_id в config для личного использования
+    const finalForm = {
+      ...form,
+      config: {
+        ...form.config,
+        server_id: serverId,
+      }
+    };
+    console.log('💾 Сохранение панели:', finalForm);
+    onSave(finalForm);
   };
+
+  // Определяем, нужен ли выбор хоста/item для текущего типа
+  const needsZabbixData = ['chart', 'single_value', 'table'].includes(form.panel_type);
 
   return (
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50">
@@ -70,16 +106,16 @@ export default function PanelEditor({ panel, serverId, onSave, onClose }: Props)
                 <option value="matrix">🟩 Матрица</option>
               </select>
             </div>
-<div>
-  <label className="block text-slate-300 text-lg mb-2">Позиция (порядок отображения)</label>
-  <input
-    type="number"
-    min="0"
-    value={form.position}
-    onChange={(e) => setForm({ ...form, position: parseInt(e.target.value) || 0 })}
-    className="w-full px-4 py-3 bg-slate-900 border border-slate-600 rounded-lg text-white text-lg"
-  />
-</div>
+            <div>
+              <label className="block text-slate-300 text-lg mb-2">Позиция</label>
+              <input
+                type="number"
+                min="0"
+                value={form.position}
+                onChange={(e) => setForm({ ...form, position: parseInt(e.target.value) || 0 })}
+                className="w-full px-4 py-3 bg-slate-900 border border-slate-600 rounded-lg text-white text-lg"
+              />
+            </div>
             <div>
               <label className="block text-slate-300 text-lg mb-2">Размер</label>
               <select
@@ -93,8 +129,32 @@ export default function PanelEditor({ panel, serverId, onSave, onClose }: Props)
             </div>
           </div>
 
+          {/* Выбор Zabbix-сервера (для типов, которым нужны данные) */}
+          {(needsZabbixData || form.panel_type === 'matrix') && (
+            <div className="pt-4 border-t border-slate-700">
+              <label className="block text-slate-300 text-lg mb-2">
+                🌐 Zabbix-сервер {initialServerId && <span className="text-slate-500 text-sm">(из настроек дашборда)</span>}
+              </label>
+              <select
+                value={serverId || ''}
+                onChange={(e) => setServerId(e.target.value ? parseInt(e.target.value) : undefined)}
+                className="w-full px-4 py-3 bg-slate-900 border border-slate-600 rounded-lg text-white text-lg"
+              >
+                <option value="">— выберите сервер —</option>
+                {zabbixServers.map((s: any) => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+              </select>
+              {initialServerId && serverId !== initialServerId && (
+                <p className="text-yellow-400 text-sm mt-2">
+                  ⚠️ Вы переопределили сервер дашборда. Этот сервер будет использоваться для данной панели.
+                </p>
+              )}
+            </div>
+          )}
+
           {/* Кнопка для открытия редактора матрицы */}
-          {form.panel_type === 'matrix' && (
+          {form.panel_type === 'matrix' && serverId && (
             <div className="mt-4">
               <button
                 onClick={() => setShowMatrixEditor(true)}
@@ -110,8 +170,14 @@ export default function PanelEditor({ panel, serverId, onSave, onClose }: Props)
             </div>
           )}
 
+          {form.panel_type === 'matrix' && !serverId && (
+            <div className="mt-4 p-4 bg-yellow-900/20 border border-yellow-700 rounded-lg text-yellow-400">
+              ⚠️ Выберите Zabbix-сервер для настройки матрицы
+            </div>
+          )}
+
           {/* Настройки для chart */}
-          {form.panel_type === 'chart' && (
+          {form.panel_type === 'chart' && serverId && (
             <div className="space-y-4 pt-4 border-t border-slate-700">
               <h4 className="text-xl font-semibold text-white">Настройки графика</h4>
               
@@ -200,7 +266,7 @@ export default function PanelEditor({ panel, serverId, onSave, onClose }: Props)
           )}
 
           {/* Настройки для single_value */}
-          {form.panel_type === 'single_value' && (
+          {form.panel_type === 'single_value' && serverId && (
             <div className="space-y-4 pt-4 border-t border-slate-700">
               <h4 className="text-xl font-semibold text-white">Текущее значение</h4>
               
@@ -258,6 +324,13 @@ export default function PanelEditor({ panel, serverId, onSave, onClose }: Props)
                   ))}
                 </select>
               </div>
+            </div>
+          )}
+
+          {/* Предупреждение, если сервер не выбран для типов, требующих Zabbix */}
+          {needsZabbixData && !serverId && (
+            <div className="p-4 bg-yellow-900/20 border border-yellow-700 rounded-lg text-yellow-400">
+              ⚠️ Выберите Zabbix-сервер для настройки хоста и item
             </div>
           )}
 

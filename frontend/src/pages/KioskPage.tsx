@@ -4,7 +4,7 @@ import { useStore } from '../store/useStore';
 import NotificationPanel from '../components/NotificationPanel';
 import DashboardRotator from '../components/DashboardRotator';
 import NotificationToast from '../components/NotificationToast';
-import { kioskApi, notificationsApi } from '../api/client';
+import { kioskApi, notificationsApi, dashboardsApi } from '../api/client';
 
 interface KioskState {
   dashboards: any[];
@@ -76,34 +76,53 @@ export default function KioskPage() {
     }
   }, [isCheckingAuth, isAuthenticated, navigate]);
 
-  const loadState = async () => {
-    try {
+const loadState = async () => {
+  try {
+    // Проверяем параметр dashboard в URL
+    const params = new URLSearchParams(window.location.search);
+    const dashboardIdParam = params.get('dashboard');
+    
+    let newState: any;
+    
+    if (dashboardIdParam) {
+      // Загружаем только конкретный дашборд (личный или общий)
+      const res = await dashboardsApi.get(parseInt(dashboardIdParam));
+      newState = {
+        dashboards: [res.data],
+        notifications: [],
+        zabbix_connected: true,
+        global_rotation_interval: 0, // Не ротируем - один дашборд
+      };
+    } else {
+      // Загружаем все дашборды в ротации (только общие)
       const res = await kioskApi.state();
-      const newState = res.data;
-      
-      if (prevSystemNotificationsRef.current.length > 0) {
-        const newOnes = newState.notifications.filter(
-          (n: any) => n.status === 'active' && 
-          !prevSystemNotificationsRef.current.find((prev: any) => prev.id === n.id)
-        );
-        if (newOnes.length > 0) {
-          setNewSystemNotification(newOnes[0]);
-          setTimeout(() => setNewSystemNotification(null), 8000);
-        }
-      }
-      prevSystemNotificationsRef.current = newState.notifications;
-      
-      const savedInterval = localStorage.getItem('rotationInterval');
-      if (savedInterval) {
-        newState.global_rotation_interval = parseInt(savedInterval);
-      }
-      
-      setState(newState);
-      setError('');
-    } catch (e: any) {
-      setError('Ошибка соединения с сервером');
+      newState = res.data;
     }
-  };
+    
+    if (prevSystemNotificationsRef.current.length > 0) {
+      const newOnes = newState.notifications.filter(
+        (n: any) => n.status === 'active' && 
+        !prevSystemNotificationsRef.current.find((prev: any) => prev.id === n.id)
+      );
+      if (newOnes.length > 0) {
+        setNewSystemNotification(newOnes[0]);
+        setTimeout(() => setNewSystemNotification(null), 8000);
+      }
+    }
+    prevSystemNotificationsRef.current = newState.notifications || [];
+    
+    const savedInterval = localStorage.getItem('rotationInterval');
+    if (savedInterval && !dashboardIdParam) {
+      newState.global_rotation_interval = parseInt(savedInterval);
+    }
+    
+    setState(newState);
+    setError('');
+  } catch (e: any) {
+    setError('Ошибка соединения с сервером');
+    console.error('Load state error:', e);
+  }
+};
 
   const loadScheduledNotifications = async () => {
     try {

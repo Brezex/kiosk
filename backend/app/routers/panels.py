@@ -1,10 +1,8 @@
 """Роутер для управления панелями."""
-from typing import List
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth import get_current_user, require_admin
+from app.auth import get_current_user
 from app.database import get_async_db
 from app.models import Panel, Dashboard, User
 from app.schemas import PanelCreate, PanelUpdate, PanelResponse
@@ -13,17 +11,36 @@ import json
 router = APIRouter(prefix="/api", tags=["panels"])
 
 
+async def check_panel_access(
+    dashboard_id: int,
+    current_user: User,
+    db: AsyncSession,
+) -> Dashboard:
+    """Проверка прав доступа к дашборду (admin или владелец)."""
+    dashboard = await db.get(Dashboard, dashboard_id)
+    if not dashboard:
+        raise HTTPException(status_code=404, detail="Dashboard not found")
+    
+    # Admin имеет доступ ко всем дашбордам
+    if current_user.role == "admin":
+        return dashboard
+    
+    # Владелец личного дашборда имеет доступ
+    if dashboard.user_id is not None and dashboard.user_id == current_user.id:
+        return dashboard
+    
+    raise HTTPException(status_code=403, detail="Access denied")
+
+
 @router.post("/dashboards/{dashboard_id}/panels", response_model=PanelResponse, status_code=201)
 async def create_panel(
     dashboard_id: int,
     data: PanelCreate,
     db: AsyncSession = Depends(get_async_db),
-    _: User = Depends(require_admin),
+    current_user: User = Depends(get_current_user),
 ):
-    """Создание новой панели."""
-    dashboard = await db.get(Dashboard, dashboard_id)
-    if not dashboard:
-        raise HTTPException(status_code=404, detail="Dashboard not found")
+    """Создание новой панели (admin или владелец дашборда)."""
+    await check_panel_access(dashboard_id, current_user, db)
     
     panel = Panel(
         dashboard_id=dashboard_id,
@@ -54,12 +71,15 @@ async def update_panel(
     panel_id: int,
     data: PanelUpdate,
     db: AsyncSession = Depends(get_async_db),
-    _: User = Depends(require_admin),
+    current_user: User = Depends(get_current_user),
 ):
-    """Обновление панели."""
+    """Обновление панели (admin или владелец дашборда)."""
     panel = await db.get(Panel, panel_id)
     if not panel:
         raise HTTPException(status_code=404, detail="Panel not found")
+    
+    # Проверяем права через дашборд
+    await check_panel_access(panel.dashboard_id, current_user, db)
     
     update_data = data.model_dump(exclude_unset=True)
     if "config" in update_data and update_data["config"] is not None:
@@ -90,12 +110,15 @@ async def update_panel(
 async def delete_panel(
     panel_id: int,
     db: AsyncSession = Depends(get_async_db),
-    _: User = Depends(require_admin),
+    current_user: User = Depends(get_current_user),
 ):
-    """Удаление панели."""
+    """Удаление панели (admin или владелец дашборда)."""
     panel = await db.get(Panel, panel_id)
     if not panel:
         raise HTTPException(status_code=404, detail="Panel not found")
+    
+    # Проверяем права через дашборд
+    await check_panel_access(panel.dashboard_id, current_user, db)
     
     await db.delete(panel)
     return {"ok": True}

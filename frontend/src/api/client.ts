@@ -33,9 +33,9 @@ export const authApi = {
 
 // ============ Dashboards ============
 export const dashboardsApi = {
-  list: () => api.get('/dashboards'),
+  list: (personal: boolean = false) => api.get('/dashboards', { params: { personal } }),
   get: (id: number) => api.get(`/dashboards/${id}`),
-  create: (data: any) => api.post('/dashboards', data),
+  create: (data: any, personal: boolean = false) => api.post('/dashboards', data, { params: { personal } }),
   update: (id: number, data: any) => api.put(`/dashboards/${id}`, data),
   delete: (id: number) => api.delete(`/dashboards/${id}`),
   export: (id: number) => api.post(`/dashboards/${id}/export`),

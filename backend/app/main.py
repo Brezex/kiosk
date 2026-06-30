@@ -78,9 +78,9 @@ async def health_check():
 
 # ============ API Routes ============
 app.include_router(auth.router)
+app.include_router(panels.router)
 app.include_router(dashboards.router)
 app.include_router(proxy.router)
-app.include_router(panels.router)
 app.include_router(zabbix_servers.router)
 app.include_router(notifications.router)
 app.include_router(users.router)
@@ -89,19 +89,17 @@ app.include_router(users.router)
 # ============ Kiosk Public Routes ============
 @app.get("/api/kiosk/state")
 async def kiosk_state():
-    """Публичный endpoint для киоска - возвращает дашборды и уведомления"""
+    """Публичный endpoint для киоска - возвращает только общие дашборды"""
     from app.database import SessionLocal
     from app.models import Dashboard, ScheduledNotification
     
     db = SessionLocal()
     try:
-        # Дашборды в ротации
+        # Только общие дашборды (user_id is NULL) в ротации
         dashboards_list = db.query(Dashboard).filter(
-            Dashboard.in_rotation == True
+            Dashboard.in_rotation == True,
+            Dashboard.user_id == None
         ).order_by(Dashboard.sort_order).all()
-        
-        # Активные системные уведомления (проблемы Zabbix)
-        # Здесь можно добавить логику получения проблем из Zabbix
         
         # Календарные уведомления
         now = datetime.utcnow()
@@ -152,14 +150,16 @@ async def kiosk_state():
 
 @app.get("/api/kiosk/dashboards")
 async def kiosk_dashboards():
-    """Публичный endpoint для получения дашбордов"""
+    """Публичный endpoint для получения только общих дашбордов"""
     from app.database import SessionLocal
     from app.models import Dashboard
     
     db = SessionLocal()
     try:
+        # Только общие дашборды
         dashboards_list = db.query(Dashboard).filter(
-            Dashboard.in_rotation == True
+            Dashboard.in_rotation == True,
+            Dashboard.user_id == None
         ).order_by(Dashboard.sort_order).all()
         
         return [
@@ -236,7 +236,7 @@ if FRONTEND_DIST.exists() and (FRONTEND_DIST / "assets").exists():
         
         return {"detail": "Frontend not built"}
 else:
-    logger.warning(f"️ Frontend dist not found at {FRONTEND_DIST}, serving API only")
+    logger.warning("Frontend dist not found, serving API only")
 
 
 # ============ Запуск ============

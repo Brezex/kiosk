@@ -12,18 +12,19 @@ interface Props {
 export default function DashboardEditor({ dashboardId, onBack, isAdmin = true }: Props) {
   const [dashboard, setDashboard] = useState<any>(null);
   const [editingPanel, setEditingPanel] = useState<any>(null);
-  const { zabbixServers } = useStore();
+  const { zabbixServers, user } = useStore();
   
-const loadDashboard = async () => {
-  const res = await dashboardsApi.get(dashboardId);
-  console.log('📊 Dashboard data:', res.data);
-  console.log('📊 Panels:', res.data.panels);
-  setDashboard(res.data);
-};
+  const loadDashboard = async () => {
+    const res = await dashboardsApi.get(dashboardId);
+    setDashboard(res.data);
+  };
   
   useEffect(() => {
     loadDashboard();
   }, [dashboardId]);
+  
+  // Проверка прав: admin ИЛИ владелец личного дашборда
+  const canEdit = isAdmin || (dashboard?.user_id && dashboard.user_id === user?.id);
   
   const handleUpdate = async (data: any) => {
     await dashboardsApi.update(dashboardId, data);
@@ -68,12 +69,12 @@ const loadDashboard = async () => {
           ← Назад
         </button>
         <h2 className="text-4xl font-bold text-white flex-1">
-          {isAdmin ? 'Редактор' : 'Просмотр'}: {dashboard.name}
+          {canEdit ? 'Редактор' : 'Просмотр'}: {dashboard.name}
         </h2>
       </div>
       
-      {/* Настройки дашборда - только для admin */}
-      {isAdmin ? (
+      {/* Настройки дашборда - только для тех, кто может редактировать */}
+      {canEdit ? (
         <div className="bg-slate-800 border border-slate-700 rounded-xl p-6 mb-6">
           <h3 className="text-2xl font-semibold text-white mb-4">Настройки дашборда</h3>
           <div className="grid grid-cols-2 gap-4">
@@ -143,7 +144,7 @@ const loadDashboard = async () => {
         <h3 className="text-2xl font-semibold text-white">
           Панели ({dashboard.panels?.length || 0})
         </h3>
-        {isAdmin && (
+        {canEdit && (
           <button
             onClick={handleAddPanel}
             className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-lg transition"
@@ -165,7 +166,7 @@ const loadDashboard = async () => {
                 Тип: {panel.panel_type} · Позиция: {panel.position}
               </div>
             </div>
-            {isAdmin && (
+            {canEdit && (
               <div className="flex gap-2">
                 <button
                   onClick={() => setEditingPanel(panel)}
