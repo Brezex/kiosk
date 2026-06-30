@@ -1,0 +1,44 @@
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: zabbix-kiosk-backend
+    restart: unless-stopped
+    env_file:
+      - /etc/zabbix-kiosk/config.env
+    environment:
+      - DATABASE_URL=sqlite+aiosqlite:////data/app.db
+    volumes:
+      - app-data:/data
+      - ./frontend/dist:/app/frontend/dist:ro
+    networks:
+      - kiosk-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: zabbix-kiosk-nginx
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - kiosk-net
+
+volumes:
+  app-data:
+    driver: local
+
+networks:
+  kiosk-net:
+    driver: bridge
