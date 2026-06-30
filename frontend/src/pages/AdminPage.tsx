@@ -9,6 +9,11 @@ import UsersPage from './UsersPage';
 
 type Tab = 'dashboards' | 'servers' | 'notifications' | 'users';
 
+// Единый стиль для кнопок
+const btnOutline = "px-6 py-3 border-2 border-purple-600 text-purple-300 hover:bg-purple-600 hover:text-white rounded-lg text-lg transition-all duration-200 font-medium";
+const btnOutlineSmall = "px-4 py-2 border-2 border-purple-600 text-purple-300 hover:bg-purple-600 hover:text-white rounded-lg text-base transition-all duration-200 font-medium";
+const btnOutlineRed = "px-4 py-2 border-2 border-red-600 text-red-300 hover:bg-red-600 hover:text-white rounded-lg text-base transition-all duration-200 font-medium";
+
 export default function AdminPage() {
   const { isAuthenticated, checkAuth, user, logout, loadDashboards, loadServers } = useStore();
   const navigate = useNavigate();
@@ -26,11 +31,12 @@ export default function AdminPage() {
       navigate('/login');
       return;
     }
-if (isAuthenticated) {
-  loadDashboards();
-  // Загружаем серверы для всех пользователей (нужно для PanelEditor)
-  loadServers();
-}
+    if (isAuthenticated) {
+      loadDashboards();
+      loadServers();
+    } else if (!user) {
+      navigate('/login');
+    }
   }, [isAuthenticated, user]);
 
   const { dashboards } = useStore();
@@ -59,7 +65,7 @@ if (isAuthenticated) {
           <button
             onClick={() => { setTab('dashboards'); setSelectedDashboardId(null); }}
             className={`w-full text-left px-4 py-3 rounded-lg text-lg transition ${
-              tab === 'dashboards' ? 'bg-blue-600 text-white' : 'text-slate-300 hover:bg-slate-700'
+              tab === 'dashboards' ? 'bg-purple-600 text-white' : 'text-slate-300 hover:bg-slate-700'
             }`}
           >
             📊 Дашборды
@@ -70,7 +76,7 @@ if (isAuthenticated) {
               <button
                 onClick={() => setTab('servers')}
                 className={`w-full text-left px-4 py-3 rounded-lg text-lg transition ${
-                  tab === 'servers' ? 'bg-blue-600 text-white' : 'text-slate-300 hover:bg-slate-700'
+                  tab === 'servers' ? 'bg-purple-600 text-white' : 'text-slate-300 hover:bg-slate-700'
                 }`}
               >
                 🔌 Подключения
@@ -78,7 +84,7 @@ if (isAuthenticated) {
               <button
                 onClick={() => setTab('notifications')}
                 className={`w-full text-left px-4 py-3 rounded-lg text-lg transition ${
-                  tab === 'notifications' ? 'bg-blue-600 text-white' : 'text-slate-300 hover:bg-slate-700'
+                  tab === 'notifications' ? 'bg-purple-600 text-white' : 'text-slate-300 hover:bg-slate-700'
                 }`}
               >
                 🔔 Уведомления
@@ -86,7 +92,7 @@ if (isAuthenticated) {
               <button
                 onClick={() => setTab('users')}
                 className={`w-full text-left px-4 py-3 rounded-lg text-lg transition ${
-                  tab === 'users' ? 'bg-blue-600 text-white' : 'text-slate-300 hover:bg-slate-700'
+                  tab === 'users' ? 'bg-purple-600 text-white' : 'text-slate-300 hover:bg-slate-700'
                 }`}
               >
                 👥 Пользователи
@@ -98,7 +104,7 @@ if (isAuthenticated) {
             <a
               href="/kiosk"
               target="_blank"
-              className="block px-4 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg text-lg text-center transition"
+              className="block px-4 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-lg text-center transition"
             >
               ️ Просмотр
             </a>
@@ -107,7 +113,7 @@ if (isAuthenticated) {
 
         <div className="p-4 border-t border-slate-700">
           <div className="text-slate-400 text-sm mb-2">
-            👤 {user?.username} 
+             {user?.username} 
             {isAdmin ? ' (admin)' : ' (viewer)'}
           </div>
           <button
@@ -206,12 +212,11 @@ function DashboardsList({ dashboards, onSelect, onRefresh, isAdmin, currentUserI
     alert(`Интервал ротации изменён на ${rotationInterval} секунд`);
   };
 
-  // Фильтрация дашбордов
   const filteredDashboards = dashboards.filter((d: any) => {
     if (showPersonalOnly) {
       return d.user_id === currentUserId;
     }
-    return true; // Общие + личные текущего пользователя
+    return true;
   });
 
   return (
@@ -225,7 +230,7 @@ function DashboardsList({ dashboards, onSelect, onRefresh, isAdmin, currentUserI
             <button
               onClick={() => setShowPersonalOnly(false)}
               className={`px-4 py-2 rounded-md text-base transition ${
-                !showPersonalOnly ? 'bg-blue-600 text-white' : 'text-slate-300 hover:bg-slate-700'
+                !showPersonalOnly ? 'bg-purple-600 text-white' : 'text-slate-300 hover:bg-slate-700'
               }`}
             >
               🌐 Общие
@@ -233,46 +238,41 @@ function DashboardsList({ dashboards, onSelect, onRefresh, isAdmin, currentUserI
             <button
               onClick={() => setShowPersonalOnly(true)}
               className={`px-4 py-2 rounded-md text-base transition ${
-                showPersonalOnly ? 'bg-blue-600 text-white' : 'text-slate-300 hover:bg-slate-700'
+                showPersonalOnly ? 'bg-purple-600 text-white' : 'text-slate-300 hover:bg-slate-700'
               }`}
             >
               👤 Мои
             </button>
           </div>
           
-<div className="flex gap-3">
-  {/* Кнопки только для admin */}
-  {isAdmin && (
-    <>
-      <button
-        onClick={() => setShowRotationSettings(true)}
-        className="px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-lg transition"
-      >
-        ⏱️ Настройки ротации
-      </button>
-      <button
-        onClick={() => setShowImport(true)}
-        className="px-6 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-lg transition"
-      >
-        📥 Импорт
-      </button>
-      <button
-        onClick={handleCreate}
-        className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-lg transition"
-      >
-         Создать общий
-      </button>
-    </>
-  )}
-  
-  {/* Кнопка "Создать личный" — для всех пользователей */}
-  <button
-    onClick={handleCreatePersonal}
-    className="px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg text-lg transition"
-  >
-    ➕ Создать личный
-  </button>
-</div>
+          {isAdmin && (
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowRotationSettings(true)}
+                className={btnOutline}
+              >
+                ⏱️ Настройки ротации
+              </button>
+              <button
+                onClick={() => setShowImport(true)}
+                className={btnOutline}
+              >
+                📥 Импорт
+              </button>
+              <button
+                onClick={handleCreate}
+                className={btnOutline}
+              >
+                ➕ Создать общий
+              </button>
+              <button
+                onClick={handleCreatePersonal}
+                className={btnOutline}
+              >
+                ➕ Создать личный
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -287,19 +287,18 @@ function DashboardsList({ dashboards, onSelect, onRefresh, isAdmin, currentUserI
           {filteredDashboards.map((d: any) => (
             <div
               key={d.id}
-              className="bg-slate-800 border border-slate-700 rounded-xl p-6 flex items-center justify-between hover:border-blue-500 transition cursor-pointer"
+              className="bg-slate-800 border border-slate-700 rounded-xl p-6 flex items-center justify-between hover:border-purple-500 transition cursor-pointer"
               onClick={() => onSelect(d.id)}
             >
               <div className="flex-1">
                 <div className="flex items-center gap-3 mb-1">
                   <h3 className="text-2xl font-semibold text-white">{d.name}</h3>
-                  {d.user_id && (
-                    <span className="px-2 py-1 bg-green-600 text-white text-xs rounded">
+                  {d.user_id ? (
+                    <span className="px-2 py-1 bg-purple-600/30 border border-purple-500 text-purple-300 text-xs rounded">
                       👤 Личный
                     </span>
-                  )}
-                  {!d.user_id && (
-                    <span className="px-2 py-1 bg-blue-600 text-white text-xs rounded">
+                  ) : (
+                    <span className="px-2 py-1 bg-blue-600/30 border border-blue-500 text-blue-300 text-xs rounded">
                       🌐 Общий
                     </span>
                   )}
@@ -310,53 +309,51 @@ function DashboardsList({ dashboards, onSelect, onRefresh, isAdmin, currentUserI
                 </div>
               </div>
               
-{(isAdmin || d.user_id === currentUserId) && (
-  <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
-    {/* Кнопка просмотра в режиме киоска */}
-
-    
-    {/* Остальные кнопки... */}
-    {/* Кнопка просмотра — для всех, кто имеет доступ */}
-    <button
-      onClick={() => window.open(`/kiosk?dashboard=${d.id}`, '_blank')}
-      className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-base transition"
-      title="Просмотр в режиме киоска"
-    >
-      ️ Просмотр
-    </button>
-    
-    {/* Ротация — только для admin */}
-    {isAdmin && (
-      <button
-        onClick={() => handleToggleRotation(d)}
-        className={`px-4 py-2 rounded-lg text-base transition ${
-          d.in_rotation
-            ? 'bg-blue-600 hover:bg-blue-700 text-white'
-            : 'bg-slate-700 hover:bg-slate-600 text-slate-300'
-        }`}
-        title="Участие в ротации"
-      >
-        {d.in_rotation ? '✓ В ротации' : '○ Не в ротации'}
-      </button>
-    )}
-    {/* Экспорт — для admin и владельца */}
-    <button
-      onClick={() => handleExport(d.id)}
-      className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-base transition"
-      title="Экспорт"
-    >
-      📤
-    </button>
-    {/* Удаление — для admin и владельца */}
-    <button
-      onClick={() => handleDelete(d.id, d.name)}
-      className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-base transition"
-      title="Удалить"
-    >
-      🗑️
-    </button>
-  </div>
-)}
+              {(isAdmin || d.user_id === currentUserId) && (
+                <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
+                  {/* Просмотр */}
+                  <button
+                    onClick={() => window.open(`/kiosk?dashboard=${d.id}`, '_blank')}
+                    className={btnOutlineSmall}
+                    title="Просмотр в режиме киоска"
+                  >
+                    👁️ Просмотр
+                  </button>
+                  
+                  {/* Ротация — только для admin */}
+                  {isAdmin && (
+                    <button
+                      onClick={() => handleToggleRotation(d)}
+                      className={`px-4 py-2 border-2 rounded-lg text-base transition-all duration-200 font-medium ${
+                        d.in_rotation
+                          ? 'border-green-600 text-green-300 hover:bg-green-600 hover:text-white'
+                          : 'border-purple-600 text-purple-300 hover:bg-purple-600 hover:text-white'
+                      }`}
+                      title="Участие в ротации"
+                    >
+                      {d.in_rotation ? '✓ В ротации' : '○ Не в ротации'}
+                    </button>
+                  )}
+                  
+                  {/* Экспорт */}
+                  <button
+                    onClick={() => handleExport(d.id)}
+                    className={btnOutlineSmall}
+                    title="Экспорт дашборда"
+                  >
+                    📤 Экспорт
+                  </button>
+                  
+                  {/* Удалить */}
+                  <button
+                    onClick={() => handleDelete(d.id, d.name)}
+                    className={btnOutlineRed}
+                    title="Удалить дашборд"
+                  >
+                    🗑️ Удалить
+                  </button>
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -365,7 +362,7 @@ function DashboardsList({ dashboards, onSelect, onRefresh, isAdmin, currentUserI
       {/* Модальное окно импорта */}
       {isAdmin && showImport && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50">
-          <div className="bg-slate-800 rounded-2xl p-6 w-full max-w-2xl border border-slate-700">
+          <div className="bg-slate-800 rounded-2xl p-6 w-full max-w-2xl border border-purple-600">
             <h3 className="text-2xl font-bold text-white mb-4">Импорт дашборда</h3>
             <textarea
               value={importJson}
@@ -376,7 +373,7 @@ function DashboardsList({ dashboards, onSelect, onRefresh, isAdmin, currentUserI
             <div className="flex gap-3 mt-4">
               <button
                 onClick={handleImport}
-                className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-lg transition"
+                className="flex-1 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-lg transition"
               >
                 Импортировать
               </button>
@@ -394,7 +391,7 @@ function DashboardsList({ dashboards, onSelect, onRefresh, isAdmin, currentUserI
       {/* Модальное окно настроек ротации */}
       {isAdmin && showRotationSettings && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50">
-          <div className="bg-slate-800 border border-slate-700 rounded-2xl p-6 w-full max-w-md">
+          <div className="bg-slate-800 border border-purple-600 rounded-2xl p-6 w-full max-w-md">
             <h3 className="text-2xl font-bold text-white mb-4">Настройки ротации дашбордов</h3>
             
             <div className="mb-6">
@@ -417,7 +414,7 @@ function DashboardsList({ dashboards, onSelect, onRefresh, isAdmin, currentUserI
             <div className="flex gap-3">
               <button
                 onClick={handleSaveRotationSettings}
-                className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-lg transition"
+                className="flex-1 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-lg transition"
               >
                 💾 Сохранить
               </button>
