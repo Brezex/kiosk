@@ -1,7 +1,6 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import ChartPanel from './ChartPanel';
 import SingleValuePanel from './SingleValuePanel';
-import TablePanel from './TablePanel';
 import TextPanel from './TextPanel';
 import StatusMatrixPanel from './StatusMatrixPanel';
 import TransitionAnimation from './TransitionAnimation';
@@ -33,25 +32,20 @@ export default function DashboardRotator({ dashboards, globalInterval }: Props) 
   const [timeLeft, setTimeLeft] = useState(30);
   const [isTransitioning, setIsTransitioning] = useState(false);
   
-  // Ref'ы для хранения значений между рендерами
   const timerRef = useRef<number | null>(null);
   const countdownRef = useRef<number | null>(null);
   const currentIndexRef = useRef(0);
   
-  // Получаем интервал из localStorage
   const savedInterval = parseInt(localStorage.getItem('rotationInterval') || '30');
   const effectiveInterval = savedInterval;
 
-  // Функция запуска таймера
   const startTimer = useCallback(() => {
     console.log('🔄 Запуск таймера на', effectiveInterval, 'секунд');
     setTimeLeft(effectiveInterval);
     
-    // Очистка предыдущих таймеров
     if (timerRef.current) clearTimeout(timerRef.current);
     if (countdownRef.current) clearInterval(countdownRef.current);
 
-    // Обратный отсчёт
     countdownRef.current = window.setInterval(() => {
       setTimeLeft((prev) => {
         if (prev <= 1) return effectiveInterval;
@@ -59,7 +53,6 @@ export default function DashboardRotator({ dashboards, globalInterval }: Props) 
       });
     }, 1000);
 
-    // Запуск анимации за 5 секунд до конца
     const animationDelay = Math.max(1000, effectiveInterval * 1000 - 5000);
     
     timerRef.current = window.setTimeout(() => {
@@ -69,7 +62,6 @@ export default function DashboardRotator({ dashboards, globalInterval }: Props) 
     }, animationDelay);
   }, [effectiveInterval]);
 
-  // Обработчик завершения анимации
   const handleTransitionComplete = useCallback(() => {
     console.log('✅ Анимация завершена, переключаем дашборд');
     const next = (currentIndexRef.current + 1) % dashboards.length;
@@ -77,11 +69,9 @@ export default function DashboardRotator({ dashboards, globalInterval }: Props) 
     setCurrentIndex(next);
     setIsTransitioning(false);
     
-    // Перезапускаем таймер
     setTimeout(() => startTimer(), 100);
   }, [dashboards.length, startTimer]);
 
-  // Запуск таймера при монтировании и изменении интервала
   useEffect(() => {
     if (dashboards.length <= 1) return;
     
@@ -93,7 +83,6 @@ export default function DashboardRotator({ dashboards, globalInterval }: Props) 
     };
   }, [dashboards.length, startTimer]);
 
-  // Синхронизация ref с state
   useEffect(() => {
     currentIndexRef.current = currentIndex;
   }, [currentIndex]);
@@ -107,7 +96,6 @@ export default function DashboardRotator({ dashboards, globalInterval }: Props) 
   return (
     <>
       <div className="h-full flex flex-col" key={dashboard.id}>
-        {/* Заголовок дашборда */}
         <div className="p-4 border-b border-slate-700 flex items-center bg-slate-800 flex-shrink-0">
           <h2 className="text-3xl font-bold text-white text-center flex-1">{dashboard.name}</h2>
           <div className="flex items-center gap-4 ml-4">
@@ -130,7 +118,6 @@ export default function DashboardRotator({ dashboards, globalInterval }: Props) 
           </div>
         </div>
 
-        {/* Grid панелей */}
         <div className="flex-1 p-3 overflow-hidden">
           <div
             className="grid gap-3 w-full h-full"
@@ -146,7 +133,6 @@ export default function DashboardRotator({ dashboards, globalInterval }: Props) 
         </div>
       </div>
 
-      {/* Анимация перехода */}
       {isTransitioning && (
         <TransitionAnimation
           logoText="YOUR COMPANY"
@@ -171,14 +157,29 @@ function PanelRenderer({ panel, dashboard }: { panel: any; dashboard: any }) {
         {panel.panel_type === 'single_value' && (
           <SingleValuePanel config={panel.config} serverId={dashboard.zabbix_server_id} />
         )}
-        {panel.panel_type === 'table' && (
-          <TablePanel config={panel.config} serverId={dashboard.zabbix_server_id} />
-        )}
         {panel.panel_type === 'text' && (
           <TextPanel config={panel.config} />
         )}
         {panel.panel_type === 'matrix' && (
           <StatusMatrixPanel config={panel.config} serverId={dashboard.zabbix_server_id} />
+        )}
+        {panel.panel_type === 'image' && (
+          <div className="w-full h-full flex items-center justify-center">
+            <img
+              src={panel.config.image_url}
+              alt={panel.title}
+              style={{
+                width: panel.config.fit ? '100%' : panel.config.width || 'auto',
+                height: panel.config.fit ? '100%' : panel.config.height || 'auto',
+                objectFit: panel.config.fit ? 'contain' : 'cover',
+                maxWidth: '100%',
+                maxHeight: '100%',
+              }}
+              onError={(e) => {
+                (e.target as HTMLImageElement).src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="200"%3E%3Crect fill="%23334155" width="200" height="200"/%3E%3Ctext fill="%2394a3b8" x="100" y="100" text-anchor="middle" dy=".3em" font-size="14"%3EImage Not Found%3C/text%3E%3C/svg%3E';
+              }}
+            />
+          </div>
         )}
       </div>
     </div>

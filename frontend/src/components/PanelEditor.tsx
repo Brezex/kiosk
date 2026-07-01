@@ -13,7 +13,7 @@ interface Props {
 export default function PanelEditor({ panel, serverId: initialServerId, onSave, onClose }: Props) {
   const { zabbixServers } = useStore();
   
-  // Внутренний serverId может переопределяться пользователем
+  // Инициализация serverId: из config панели или из дашборда
   const [serverId, setServerId] = useState<number | undefined>(
     panel.config?.server_id || initialServerId
   );
@@ -23,35 +23,47 @@ export default function PanelEditor({ panel, serverId: initialServerId, onSave, 
   const [items, setItems] = useState<any[]>([]);
   const [showMatrixEditor, setShowMatrixEditor] = useState(false);
 
-  // При смене сервера - сбрасываем host и item
-useEffect(() => {
-  setForm((prev: any) => ({
-    ...prev,
-    config: {
-      ...prev.config,
-      server_id: serverId,
-      host_id: '',
-      item_id: '',
-      item_name: '',
-      units: '',
-    }
-  }));
-  setHosts([]);
-  setItems([]);
-}, [serverId]);
+  console.log('📥 PanelEditor открыт:', {
+    panel,
+    serverId,
+    initialServerId,
+    config: panel.config
+  });
 
-  // Загрузка хостов при наличии serverId
+  // При смене serverId - загружаем хосты
   useEffect(() => {
-    if (serverId && form.panel_type !== 'matrix') {
-      proxyApi.hosts(serverId).then((res) => setHosts(res.data)).catch(() => {});
+    if (serverId && !['matrix', 'image', 'text'].includes(form.panel_type)) {
+      console.log(' Загрузка хостов для serverId:', serverId);
+      proxyApi.hosts(serverId)
+        .then((res) => {
+          setHosts(res.data);
+          console.log('✅ Загружено хостов:', res.data.length);
+        })
+        .catch((err) => {
+          console.error('❌ Ошибка загрузки хостов:', err);
+        });
     }
   }, [serverId, form.panel_type]);
 
-  // Загрузка items при выборе хоста (НЕ для матрицы!)
+  // При наличии host_id - загружаем items
   useEffect(() => {
     const hostId = form.config.host_id;
-    if (serverId && hostId && form.panel_type !== 'matrix') {
-      proxyApi.items(serverId, hostId).then((res) => setItems(res.data)).catch(() => {});
+    if (serverId && hostId && !['matrix', 'image', 'text'].includes(form.panel_type)) {
+      console.log('🔍 Загрузка items для hostId:', hostId);
+      proxyApi.items(serverId, hostId)
+        .then((res) => {
+          setItems(res.data);
+          console.log('✅ Загружено items:', res.data.length);
+          
+          // Проверяем, есть ли выбранный item в списке
+          const currentItemId = form.config.item_id;
+          if (currentItemId && !res.data.find((i: any) => i.itemid === currentItemId)) {
+            console.warn('️ Выбранный item не найден в списке');
+          }
+        })
+        .catch((err) => {
+          console.error('❌ Ошибка загрузки items:', err);
+        });
     }
   }, [serverId, form.config.host_id, form.panel_type]);
 
@@ -60,7 +72,6 @@ useEffect(() => {
   };
 
   const handleSave = () => {
-    // Сохраняем server_id в config для личного использования
     const finalForm = {
       ...form,
       config: {
@@ -72,8 +83,7 @@ useEffect(() => {
     onSave(finalForm);
   };
 
-  // Определяем, нужен ли выбор хоста/item для текущего типа
-  const needsZabbixData = ['chart', 'single_value', 'table'].includes(form.panel_type);
+  const needsZabbixData = ['chart', 'single_value'].includes(form.panel_type);
 
   return (
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50">
@@ -100,9 +110,9 @@ useEffect(() => {
                 className="w-full px-4 py-3 bg-slate-900 border border-slate-600 rounded-lg text-white text-lg"
               >
                 <option value="chart">📈 График</option>
-                <option value="single_value">🔢 Текущее значение</option>
-                <option value="table">📋 Таблица</option>
-                <option value="text">📝 Текст</option>
+                <option value="single_value"> Текущее значение</option>
+                <option value="image">🖼️ Изображение</option>
+                <option value="text"> Текст</option>
                 <option value="matrix">🟩 Матрица</option>
               </select>
             </div>
@@ -129,11 +139,11 @@ useEffect(() => {
             </div>
           </div>
 
-          {/* Выбор Zabbix-сервера (для типов, которым нужны данные) */}
+          {/* Выбор Zabbix-сервера */}
           {(needsZabbixData || form.panel_type === 'matrix') && (
             <div className="pt-4 border-t border-slate-700">
               <label className="block text-slate-300 text-lg mb-2">
-                🌐 Zabbix-сервер {initialServerId && <span className="text-slate-500 text-sm">(из настроек дашборда)</span>}
+                 Zabbix-сервер {initialServerId && <span className="text-slate-500 text-sm">(из настроек дашборда)</span>}
               </label>
               <select
                 value={serverId || ''}
@@ -145,34 +155,6 @@ useEffect(() => {
                   <option key={s.id} value={s.id}>{s.name}</option>
                 ))}
               </select>
-              {initialServerId && serverId !== initialServerId && (
-                <p className="text-yellow-400 text-sm mt-2">
-                  ⚠️ Вы переопределили сервер дашборда. Этот сервер будет использоваться для данной панели.
-                </p>
-              )}
-            </div>
-          )}
-
-          {/* Кнопка для открытия редактора матрицы */}
-          {form.panel_type === 'matrix' && serverId && (
-            <div className="mt-4">
-              <button
-                onClick={() => setShowMatrixEditor(true)}
-                className="w-full py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-lg transition"
-              >
-                🎨 Открыть редактор матрицы
-              </button>
-              {form.config.rows?.length > 0 && (
-                <div className="mt-2 text-slate-400 text-sm">
-                  ✓ Матрица настроена: {form.config.rows.length} строк × {form.config.columns?.length || 0} столбцов
-                </div>
-              )}
-            </div>
-          )}
-
-          {form.panel_type === 'matrix' && !serverId && (
-            <div className="mt-4 p-4 bg-yellow-900/20 border border-yellow-700 rounded-lg text-yellow-400">
-              ⚠️ Выберите Zabbix-сервер для настройки матрицы
             </div>
           )}
 
@@ -204,11 +186,14 @@ useEffect(() => {
                     <option key={h.hostid} value={h.hostid}>{h.name}</option>
                   ))}
                 </select>
+                {hosts.length === 0 && serverId && (
+                  <p className="text-yellow-400 text-sm mt-2">⏳ Загрузка хостов...</p>
+                )}
               </div>
 
               <div>
                 <label className="block text-slate-300 text-lg mb-2">
-                  Item {items.length === 0 && form.config.host_id && '(загрузка...)'}
+                  Метрика {items.length === 0 && form.config.host_id && '(загрузка...)'}
                 </label>
                 <select
                   value={form.config.item_id || ''}
@@ -227,7 +212,7 @@ useEffect(() => {
                   className="w-full px-4 py-3 bg-slate-900 border border-slate-600 rounded-lg text-white text-lg"
                   disabled={!form.config.host_id || items.length === 0}
                 >
-                  <option value="">— выберите item —</option>
+                  <option value="">— выберите метрику —</option>
                   {items.map((i) => (
                     <option key={i.itemid} value={i.itemid}>{i.name}</option>
                   ))}
@@ -298,7 +283,7 @@ useEffect(() => {
 
               <div>
                 <label className="block text-slate-300 text-lg mb-2">
-                  Item {items.length === 0 && form.config.host_id && '(загрузка...)'}
+                  Метрика {items.length === 0 && form.config.host_id && '(загрузка...)'}
                 </label>
                 <select
                   value={form.config.item_id || ''}
@@ -318,7 +303,7 @@ useEffect(() => {
                   className="w-full px-4 py-3 bg-slate-900 border border-slate-600 rounded-lg text-white text-lg"
                   disabled={!form.config.host_id || items.length === 0}
                 >
-                  <option value="">— выберите item —</option>
+                  <option value="">— выберите метрику —</option>
                   {items.map((i) => (
                     <option key={i.itemid} value={i.itemid}>{i.name}</option>
                   ))}
@@ -327,19 +312,63 @@ useEffect(() => {
             </div>
           )}
 
-          {/* Предупреждение, если сервер не выбран для типов, требующих Zabbix */}
-          {needsZabbixData && !serverId && (
-            <div className="p-4 bg-yellow-900/20 border border-yellow-700 rounded-lg text-yellow-400">
-              ⚠️ Выберите Zabbix-сервер для настройки хоста и item
+          {/* Настройки для image */}
+          {form.panel_type === 'image' && (
+            <div className="space-y-4 pt-4 border-t border-slate-700">
+              <h4 className="text-xl font-semibold text-white">Настройки изображения</h4>
+              
+              <div>
+                <label className="block text-slate-300 text-lg mb-2">URL изображения</label>
+                <input
+                  type="text"
+                  value={form.config.image_url || ''}
+                  onChange={(e) => updateConfig('image_url', e.target.value)}
+                  className="w-full px-4 py-3 bg-slate-900 border border-slate-600 rounded-lg text-white text-lg"
+                  placeholder="https://example.com/image.png"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-slate-300 text-lg mb-2">Ширина (px)</label>
+                  <input
+                    type="number"
+                    value={form.config.width || ''}
+                    onChange={(e) => updateConfig('width', e.target.value ? parseInt(e.target.value) : null)}
+                    className="w-full px-4 py-3 bg-slate-900 border border-slate-600 rounded-lg text-white text-lg"
+                    placeholder="авто"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-300 text-lg mb-2">Высота (px)</label>
+                  <input
+                    type="number"
+                    value={form.config.height || ''}
+                    onChange={(e) => updateConfig('height', e.target.value ? parseInt(e.target.value) : null)}
+                    className="w-full px-4 py-3 bg-slate-900 border border-slate-600 rounded-lg text-white text-lg"
+                    placeholder="авто"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-300 text-lg mb-2">
+                  <input
+                    type="checkbox"
+                    checked={form.config.fit || false}
+                    onChange={(e) => updateConfig('fit', e.target.checked)}
+                    className="mr-2"
+                  />
+                  Растянуть по размеру панели
+                </label>
+              </div>
             </div>
           )}
 
           {/* Настройки для text */}
           {form.panel_type === 'text' && (
             <div className="pt-4 border-t border-slate-700">
-              <label className="block text-slate-300 text-lg mb-2">
-                HTML/Markdown контент
-              </label>
+              <label className="block text-slate-300 text-lg mb-2">HTML/Markdown контент</label>
               <textarea
                 value={form.config.content || ''}
                 onChange={(e) => updateConfig('content', e.target.value)}
@@ -348,9 +377,20 @@ useEffect(() => {
               />
             </div>
           )}
+
+          {/* Редактор матрицы */}
+          {form.panel_type === 'matrix' && serverId && (
+            <div className="mt-4">
+              <button
+                onClick={() => setShowMatrixEditor(true)}
+                className="w-full py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-lg transition"
+              >
+                 Открыть редактор матрицы
+              </button>
+            </div>
+          )}
         </div>
 
-        {/* Редактор матрицы */}
         {showMatrixEditor && (
           <MatrixEditor
             config={form.config}

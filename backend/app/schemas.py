@@ -122,7 +122,7 @@ class DashboardResponse(BaseModel):
 
 # ============ Panels ============
 class PanelCreate(BaseModel):
-    panel_type: str = Field(pattern="^(chart|single_value|table|text|matrix)$")
+    panel_type: str = Field(min_length=1, max_length=50)
     title: str = Field(min_length=1, max_length=200)
     position: int = Field(ge=0, default=0)
     size: int = Field(ge=1, le=2, default=1)

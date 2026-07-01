@@ -28,13 +28,11 @@ interface Props {
 
 export default function MatrixEditor({ config, serverId, onSave, onClose }: Props) {
   const [rows, setRows] = useState<MatrixRow[]>(config.rows || [
-    { id: '', name: 'Строка 1', cells: [{ hostId: '', hostName: '', itemId: '', itemName: '' }, { hostId: '', hostName: '', itemId: '', itemName: '' }] },
-    { id: '', name: 'Строка 2', cells: [{ hostId: '', hostName: '', itemId: '', itemName: '' }, { hostId: '', hostName: '', itemId: '', itemName: '' }] },
+    { id: '', name: 'Строка 1', cells: [{ hostId: '', hostName: '', itemId: '', itemName: '' }] },
   ]);
   
   const [columns, setColumns] = useState<MatrixColumn[]>(config.columns || [
     { id: 'col1', name: 'Столбец 1' },
-    { id: 'col2', name: 'Столбец 2' },
   ]);
 
   const [hosts, setHosts] = useState<any[]>([]);
@@ -160,13 +158,13 @@ export default function MatrixEditor({ config, serverId, onSave, onClose }: Prop
         <div className="flex gap-3 mb-6">
           <button
             onClick={addRow}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-base transition"
+            className="px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white rounded-lg text-base transition"
           >
             ➕ Добавить строку
           </button>
           <button
             onClick={addColumn}
-            className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-base transition"
+            className="px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white rounded-lg text-base transition"
           >
             ➕ Добавить столбец
           </button>

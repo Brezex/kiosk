@@ -141,7 +141,7 @@ const loadState = async () => {
         }
       }
     } catch (e) {
-      // Тихо игнорируем
+      // Тихо игнорируй
     }
   };
 
@@ -217,7 +217,7 @@ const loadState = async () => {
     <div className="min-h-screen h-screen bg-slate-900 flex flex-col overflow-hidden">
       {!state.zabbix_connected && (
         <div className="bg-red-600/20 border-b border-red-600 text-red-400 text-center py-2 font-semibold text-lg">
-          ⚠️ Нет соединения с Zabbix — отображаются закешированные данные
+          ⚠️ Нет соединения с Zabbix — отображаются кешированные данные
         </div>
       )}
 
