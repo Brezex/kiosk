@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   backend:
     build:
@@ -15,7 +13,7 @@ services:
       - SECRET_KEY=${SECRET_KEY:-change-this-in-production-very-secret-key-min-32-chars}
       - DATABASE_URL=sqlite:///./data/zabbix_kiosk.db
       - PORT=8000
-      - CORS_ORIGINS=http://localhost,http://localhost:8000,http://localhost:5173
+      - 'CORS_ORIGINS=["http://localhost","http://localhost:8000","http://localhost:5173"]'
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
