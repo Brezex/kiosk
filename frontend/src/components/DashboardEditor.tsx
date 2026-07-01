@@ -117,6 +117,7 @@ export default function DashboardEditor({ dashboardId, onBack, isAdmin = true }:
                 className="w-full px-4 py-3 bg-slate-900 border border-slate-600 rounded-lg text-white text-lg"
               />
             </div>
+            
             <div>
               <label className="block text-slate-300 text-lg mb-2">Порядок</label>
               <input
@@ -138,6 +139,37 @@ export default function DashboardEditor({ dashboardId, onBack, isAdmin = true }:
           </div>
         </div>
       )}
+      
+  {/* НОВОЕ ПОЛЕ */}
+  <div>
+    <label className="block text-slate-300 text-lg mb-2">
+      ️ Интервал обновления данных (сек)
+    </label>
+    <select
+      value={dashboard.update_interval || 30}
+      onChange={(e) => handleUpdate({ update_interval: parseInt(e.target.value) })}
+      className="w-full px-4 py-3 bg-slate-900 border border-slate-600 rounded-lg text-white text-lg"
+    >
+      <option value={10}>10 секунд</option>
+      <option value={30}>30 секунд</option>
+      <option value={60}>1 минута</option>
+      <option value={120}>2 минуты</option>
+      <option value={300}>5 минут</option>
+      <option value={600}>10 минут</option>
+    </select>
+    <p className="text-slate-400 text-sm mt-2">
+      Как часто обновлять данные из Zabbix
+    </p>
+  </div>
+  <div>
+    <label className="block text-slate-300 text-lg mb-2">Порядок</label>
+    <input
+      type="number"
+      value={dashboard.sort_order}
+      onChange={(e) => handleUpdate({ sort_order: parseInt(e.target.value) })}
+      className="w-full px-4 py-3 bg-slate-900 border border-slate-600 rounded-lg text-white text-lg"
+    />
+  </div>
       
       {/* Панели */}
       <div className="flex items-center justify-between mb-4">

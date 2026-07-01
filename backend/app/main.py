@@ -84,6 +84,7 @@ app.include_router(proxy.router)
 app.include_router(zabbix_servers.router)
 app.include_router(notifications.router)
 app.include_router(users.router)
+#app.include_router(statistics.router)
 
 
 # ============ Kiosk Public Routes ============

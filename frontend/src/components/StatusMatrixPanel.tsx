@@ -17,6 +17,8 @@ interface Props {
     thresholds?: { warn: number; crit: number };
   };
   serverId?: number;
+    updateInterval?: number;
+
 }
 
 interface CellData {

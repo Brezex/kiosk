@@ -6,8 +6,9 @@ import DashboardEditor from '../components/DashboardEditor';
 import ZabbixServerManager from '../components/ZabbixServerManager';
 import NotificationsPage from './NotificationsPage';
 import UsersPage from './UsersPage';
+import StatisticsPage from './StatisticsPage';
 
-type Tab = 'dashboards' | 'servers' | 'notifications' | 'users';
+type Tab = 'dashboards' | 'servers' | 'notifications' | 'users' | 'statistics';
 
 // Единый стиль для кнопок
 const btnOutline = "px-6 py-3 border-2 border-purple-600 text-purple-300 hover:bg-purple-600 hover:text-white rounded-lg text-lg transition-all duration-200 font-medium";
@@ -68,8 +69,17 @@ export default function AdminPage() {
               tab === 'dashboards' ? 'bg-purple-600 text-white' : 'text-slate-300 hover:bg-slate-700'
             }`}
           >
-            📊 Дашборды
+            🎛️ Дашборды
           </button>
+          {/*{<button
+  onClick={() => setTab('statistics')}
+  className={`w-full text-left px-4 py-3 rounded-lg text-lg transition ${
+    tab === 'statistics' ? 'bg-purple-600 text-white' : 'text-slate-300 hover:bg-slate-700'
+  }`}
+>
+  📊 Статистика
+</button>*/}
+
           
           {isAdmin && (
             <>
@@ -127,6 +137,7 @@ export default function AdminPage() {
 
       {/* Main content */}
       <main className="flex-1 overflow-auto">
+        
         {tab === 'dashboards' && !selectedDashboardId && (
           <DashboardsList
             dashboards={dashboards}
@@ -143,9 +154,11 @@ export default function AdminPage() {
             isAdmin={isAdmin}
           />
         )}
+        {tab === 'statistics' && <StatisticsPage />}
         {isAdmin && tab === 'servers' && <ZabbixServerManager onRefresh={loadServers} />}
         {isAdmin && tab === 'notifications' && <NotificationsPage />}
         {isAdmin && tab === 'users' && <UsersPage />}
+        
       </main>
     </div>
   );

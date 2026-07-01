@@ -42,6 +42,7 @@ class Dashboard(Base):
     in_rotation = Column(Boolean, default=True)
     sort_order = Column(Integer, default=0)
     rotation_interval = Column(Integer, nullable=True)
+    update_interval = Column(Integer, default=30)
     created_at = Column(DateTime, default=datetime.utcnow)
     
     panels = relationship("Panel", back_populates="dashboard", cascade="all, delete-orphan")

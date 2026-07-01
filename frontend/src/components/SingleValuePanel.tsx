@@ -9,6 +9,8 @@ interface Props {
     thresholds?: { warn: number; crit: number };
   };
   serverId?: number;
+    updateInterval?: number;
+
 }
 
 export default function SingleValuePanel({ config, serverId }: Props) {

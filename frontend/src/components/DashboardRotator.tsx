@@ -35,7 +35,7 @@ export default function DashboardRotator({ dashboards, globalInterval }: Props) 
   const timerRef = useRef<number | null>(null);
   const countdownRef = useRef<number | null>(null);
   const currentIndexRef = useRef(0);
-  
+
   const savedInterval = parseInt(localStorage.getItem('rotationInterval') || '30');
   const effectiveInterval = savedInterval;
 
@@ -92,6 +92,9 @@ export default function DashboardRotator({ dashboards, globalInterval }: Props) 
   const dashboard = dashboards[currentIndex];
   const totalPanels = dashboard.panels?.length || 0;
   const { columns, rows } = calculateGrid(totalPanels);
+  
+  // Интервал обновления данных из Zabbix (из дашборда или глобальный)
+  const updateInterval = dashboard.update_interval || 30;
 
   return (
     <>
@@ -127,7 +130,12 @@ export default function DashboardRotator({ dashboards, globalInterval }: Props) 
             }}
           >
             {dashboard.panels?.map((panel: any) => (
-              <PanelRenderer key={panel.id} panel={panel} dashboard={dashboard} />
+              <PanelRenderer 
+                key={panel.id} 
+                panel={panel} 
+                dashboard={dashboard}
+                updateInterval={updateInterval}
+              />
             ))}
           </div>
         </div>
@@ -144,7 +152,7 @@ export default function DashboardRotator({ dashboards, globalInterval }: Props) 
   );
 }
 
-function PanelRenderer({ panel, dashboard }: { panel: any; dashboard: any }) {
+function PanelRenderer({ panel, dashboard, updateInterval }: { panel: any; dashboard: any; updateInterval: number }) {
   return (
     <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 overflow-hidden flex flex-col min-h-0">
       <div className="text-lg font-semibold text-white mb-2 flex-shrink-0 truncate">
@@ -152,16 +160,28 @@ function PanelRenderer({ panel, dashboard }: { panel: any; dashboard: any }) {
       </div>
       <div className="flex-1 min-h-0 overflow-hidden">
         {panel.panel_type === 'chart' && (
-          <ChartPanel config={panel.config} serverId={dashboard.zabbix_server_id} />
+          <ChartPanel 
+            config={panel.config} 
+            serverId={dashboard.zabbix_server_id}
+            updateInterval={updateInterval}
+          />
         )}
         {panel.panel_type === 'single_value' && (
-          <SingleValuePanel config={panel.config} serverId={dashboard.zabbix_server_id} />
+          <SingleValuePanel 
+            config={panel.config} 
+            serverId={dashboard.zabbix_server_id}
+            updateInterval={updateInterval}
+          />
         )}
         {panel.panel_type === 'text' && (
           <TextPanel config={panel.config} />
         )}
         {panel.panel_type === 'matrix' && (
-          <StatusMatrixPanel config={panel.config} serverId={dashboard.zabbix_server_id} />
+          <StatusMatrixPanel 
+            config={panel.config} 
+            serverId={dashboard.zabbix_server_id}
+            updateInterval={updateInterval}
+          />
         )}
         {panel.panel_type === 'image' && (
           <div className="w-full h-full flex items-center justify-center">

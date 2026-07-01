@@ -11,6 +11,7 @@ interface Props {
     color?: string;
   };
   serverId?: number;
+  updateInterval?: number;
 }
 
 export default function ChartPanel({ config, serverId }: Props) {

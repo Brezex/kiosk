@@ -94,6 +94,7 @@ class DashboardCreate(BaseModel):
     in_rotation: bool = True
     sort_order: int = 0
     rotation_interval: Optional[int] = None
+    update_interval: int = 30
 
 
 class DashboardUpdate(BaseModel):
@@ -102,6 +103,7 @@ class DashboardUpdate(BaseModel):
     in_rotation: Optional[bool] = None
     sort_order: Optional[int] = None
     rotation_interval: Optional[int] = None
+    update_interval: Optional[int] = None
 
 
 class DashboardResponse(BaseModel):
@@ -112,6 +114,7 @@ class DashboardResponse(BaseModel):
     in_rotation: bool
     sort_order: int
     rotation_interval: Optional[int]
+    update_interval: int = 30
     created_at: datetime
     panels: List["PanelResponse"] = []
     zabbix_server: Optional["ZabbixServerResponse"] = None
