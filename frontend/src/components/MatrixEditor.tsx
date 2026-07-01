@@ -77,6 +77,30 @@ export default function MatrixEditor({ config, serverId, onSave, onClose }: Prop
     })));
   };
 
+  // Удаление строки
+  const removeRow = (rowIndex: number) => {
+    if (rows.length <= 1) {
+      alert('Нельзя удалить последнюю строку!');
+      return;
+    }
+    if (!confirm(`Удалить строку "${rows[rowIndex].name}"?`)) return;
+    setRows(rows.filter((_, i) => i !== rowIndex));
+  };
+
+  // Удаление столбца
+  const removeColumn = (colIndex: number) => {
+    if (columns.length <= 1) {
+      alert('Нельзя удалить последний столбец!');
+      return;
+    }
+    if (!confirm(`Удалить столбец "${columns[colIndex].name}"?`)) return;
+    setColumns(columns.filter((_, i) => i !== colIndex));
+    setRows(rows.map(row => ({
+      ...row,
+      cells: row.cells.filter((_, i) => i !== colIndex)
+    })));
+  };
+
   const updateRowName = (rowIndex: number, name: string) => {
     const newRows = [...rows];
     newRows[rowIndex].name = name;
@@ -173,6 +197,7 @@ export default function MatrixEditor({ config, serverId, onSave, onClose }: Prop
         <div className="overflow-auto mb-6">
           <table className="w-full border-collapse">
             <thead>
+              {/* Заголовки столбцов */}
               <tr>
                 <th className="p-3 bg-slate-700 text-white text-left font-semibold border border-slate-600">
                   Узел сети
@@ -183,11 +208,26 @@ export default function MatrixEditor({ config, serverId, onSave, onClose }: Prop
                       type="text"
                       value={col.name}
                       onChange={(e) => updateColumnName(colIndex, e.target.value)}
-                      className="w-full px-2 py-1 bg-slate-800 border border-slate-600 rounded text-white text-sm"
+                      className="w-full px-2 py-1 bg-slate-800 border border-slate-600 rounded text-white text-sm mb-2"
                       placeholder="Название столбца"
                     />
+                    <button
+                      onClick={() => removeColumn(colIndex)}
+                      disabled={columns.length <= 1}
+                      className={`w-full px-2 py-1 rounded text-xs font-medium transition ${
+                        columns.length <= 1
+                          ? 'bg-slate-800 text-slate-600 cursor-not-allowed opacity-50'
+                          : 'bg-red-600/20 text-red-400 border border-red-600 hover:bg-red-600 hover:text-white'
+                      }`}
+                      title={columns.length <= 1 ? 'Нельзя удалить последний столбец' : 'Удалить столбец'}
+                    >
+                       Удалить столбец
+                    </button>
                   </th>
                 ))}
+                <th className="p-3 bg-slate-700 text-white font-semibold border border-slate-600 w-16">
+                  
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -232,6 +272,21 @@ export default function MatrixEditor({ config, serverId, onSave, onClose }: Prop
                       </div>
                     </td>
                   ))}
+                  {/* Кнопка удаления строки */}
+                  <td className="p-2 border border-slate-600 text-center">
+                    <button
+                      onClick={() => removeRow(rowIndex)}
+                      disabled={rows.length <= 1}
+                      className={`px-3 py-2 rounded text-sm font-medium transition ${
+                        rows.length <= 1
+                          ? 'bg-slate-800 text-slate-600 cursor-not-allowed opacity-50'
+                          : 'bg-red-600/20 text-red-400 border border-red-600 hover:bg-red-600 hover:text-white'
+                      }`}
+                      title={rows.length <= 1 ? 'Нельзя удалить последнюю строку' : 'Удалить строку'}
+                    >
+                       Удалить строку
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -254,7 +309,7 @@ export default function MatrixEditor({ config, serverId, onSave, onClose }: Prop
         </div>
       </div>
 
-           {showHostSelector && (
+      {showHostSelector && (
         <HostSelectorModal
           hosts={hosts}
           onSelect={selectHost}
@@ -289,7 +344,9 @@ export default function MatrixEditor({ config, serverId, onSave, onClose }: Prop
       )}
     </div>
   );
-  // Компонент модального окна выбора хоста с поиском
+}
+
+// Компонент модального окна выбора хоста с поиском
 function HostSelectorModal({ hosts, onSelect, onClose }: { 
   hosts: any[]; 
   onSelect: (host: any) => void; 
@@ -312,7 +369,6 @@ function HostSelectorModal({ hosts, onSelect, onClose }: {
       >
         <h4 className="text-2xl font-bold text-white mb-4">Выберите узел сети</h4>
         
-        {/* Поле поиска */}
         <input
           type="text"
           placeholder="🔍 Поиск по названию..."
@@ -349,5 +405,4 @@ function HostSelectorModal({ hosts, onSelect, onClose }: {
       </div>
     </div>
   );
-}
 }

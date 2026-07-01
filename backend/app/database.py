@@ -1,23 +1,32 @@
-import os
+# database.py
+
 from sqlalchemy import create_engine
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker, declarative_base
 
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DB_PATH = os.path.join(BASE_DIR, "zabbix_kiosk.db")
+from app.config import settings
 
-# Синхронный движок (для скриптов)
-SQLALCHEMY_DATABASE_URL = f"sqlite:///{DB_PATH}"
+# Получаем URL из настроек (он читается из переменной окружения DATABASE_URL)
+SQLALCHEMY_DATABASE_URL = settings.DATABASE_URL
+
+# Для асинхронного движка конвертируем sqlite:/// в sqlite+aiosqlite:///
+if SQLALCHEMY_DATABASE_URL.startswith("sqlite://"):
+    SQLALCHEMY_ASYNC_DATABASE_URL = SQLALCHEMY_DATABASE_URL.replace(
+        "sqlite://", "sqlite+aiosqlite://", 1
+    )
+else:
+    SQLALCHEMY_ASYNC_DATABASE_URL = SQLALCHEMY_DATABASE_URL
+
+# Синхронный движок (для скриптов и миграций)
 engine = create_engine(
     SQLALCHEMY_DATABASE_URL,
-    connect_args={"check_same_thread": False}
+    connect_args={"check_same_thread": False} if "sqlite" in SQLALCHEMY_DATABASE_URL else {}
 )
 
 # Асинхронный движок (для FastAPI)
-SQLALCHEMY_ASYNC_DATABASE_URL = f"sqlite+aiosqlite:///{DB_PATH}"
 async_engine = create_async_engine(
     SQLALCHEMY_ASYNC_DATABASE_URL,
-    connect_args={"check_same_thread": False}
+    connect_args={"check_same_thread": False} if "sqlite" in SQLALCHEMY_ASYNC_DATABASE_URL else {}
 )
 
 # Синхронная сессия

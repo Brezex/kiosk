@@ -118,28 +118,6 @@ async def update_dashboard(
     await db.flush()
     await db.refresh(dashboard)
     return dashboard
-    
-    """Обновление дашборда (только владелец или admin)."""
-    result = await db.execute(
-        select(Dashboard)
-        .options(selectinload(Dashboard.panels), selectinload(Dashboard.zabbix_server))
-        .where(Dashboard.id == dashboard_id)
-    )
-    dashboard = result.scalar_one_or_none()
-    if not dashboard:
-        raise HTTPException(status_code=404, detail="Dashboard not found")
-    
-    # Проверка прав: только владелец или admin
-    if dashboard.user_id is not None and dashboard.user_id != current_user.id and current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Access denied")
-    
-    for k, v in data.model_dump(exclude_unset=True).items():
-        setattr(dashboard, k, v)
-    
-    db.add(dashboard)
-    await db.flush()
-    await db.refresh(dashboard)
-    return dashboard
 
 
 @router.delete("/{dashboard_id}")
