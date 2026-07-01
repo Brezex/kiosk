@@ -2,16 +2,11 @@
 import asyncio
 import logging
 from datetime import datetime, timedelta
-from typing import Dict, List
-from sqlalchemy.orm import Session
-from app.database import SessionLocal
-from app.models import ScheduledNotification
-
+from typing import Dict
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import async_session
-from app.models import ZabbixServer
+from app.models import ZabbixServer, ScheduledNotification
 from app.notifications import notification_store
 from app.zabbix_client import ZabbixClient, decrypt_token
 
@@ -20,40 +15,48 @@ logger = logging.getLogger(__name__)
 # Флаг, есть ли соединение с Zabbix
 _zabbix_connected: Dict[int, bool] = {}
 
+
 async def check_notifications():
     """Проверяет и отправляет уведомления в нужное время"""
     while True:
         try:
-            db: Session = SessionLocal()
-            now = datetime.utcnow()
+            async with async_session() as session:
+                now = datetime.utcnow()
+                
+                # Находим уведомления, которые нужно отправить (в течение последней минуты)
+                result = await session.execute(
+                    select(ScheduledNotification).where(
+                        ScheduledNotification.scheduled_at <= now,
+                        ScheduledNotification.scheduled_at >= now - timedelta(minutes=1),
+                        ScheduledNotification.is_active == True,
+                        ScheduledNotification.is_sent == False
+                    )
+                )
+                notifications = result.scalars().all()
+                
+                for notification in notifications:
+                    logger.info(f"📢 Sending notification: {notification.title}")
+                    # Здесь можно добавить логику отправки (WebSocket, polling flag и т.д.)
+                    notification.is_sent = True
+                
+                # Коммит происходит автоматически при выходе из async with
+                # благодаря expire_on_commit=False в настройках async_session
             
-            # Находим уведомления, которые нужно отправить (в течение последней минуты)
-            notifications = db.query(ScheduledNotification).filter(
-                ScheduledNotification.scheduled_at <= now,
-                ScheduledNotification.scheduled_at >= now - timedelta(minutes=1),
-                ScheduledNotification.is_active == True,
-                ScheduledNotification.is_sent == False
-            ).all()
-            
-            for notification in notifications:
-                logger.info(f"📢 Sending notification: {notification.title}")
-                # Здесь можно добавить логику отправки (WebSocket, polling flag и т.д.)
-                notification.is_sent = True
-                db.commit()
-            
-            db.close()
         except Exception as e:
             logger.error(f"Error checking notifications: {e}")
         
         await asyncio.sleep(60)  # Проверка каждую минуту
 
+
 def start_notification_checker():
     """Запускает фоновую проверку уведомлений"""
     asyncio.create_task(check_notifications())
 
+
 def start_background_poller():
     """Запускает фоновый опрос Zabbix-серверов"""
     asyncio.create_task(background_poller())
+
 
 def is_zabbix_connected() -> bool:
     """Проверка, есть ли хотя бы одно активное соединение."""

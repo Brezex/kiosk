@@ -13,12 +13,12 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "sqlite:///./data/zabbix_kiosk.db"
     
     # Безопасность
-    SECRET_KEY: str = "change-this-to-a-very-secret-key-min-32-chars"
+    SECRET_KEY: str = "PXAwbRKJ2A_cucguTRBqDs8XD50uxKZACnzbULuoEF4"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24
     
     # Шифрование токенов Zabbix
-    ENCRYPTION_KEY: str = "change-this-encryption-key-32-chars!!"
+    ENCRYPTION_KEY: str = "PXAwbRKJ2A_cucguTRBqDs8XD50uxKZACnzbULuoEF4"
     
     # Zabbix настройки
     ZABBIX_TIMEOUT: int = 30
