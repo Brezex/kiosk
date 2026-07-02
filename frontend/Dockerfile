@@ -1,41 +1,28 @@
-# Stage 1: Build frontend
-FROM node:20-alpine AS frontend-builder
-
-WORKDIR /build/frontend
-
-COPY frontend/package*.json ./
-RUN npm ci
-COPY frontend/ ./
-RUN npm run build
-
-# Stage 2: Backend + frontend
-FROM python:3.11-slim
-
-ENV DEBIAN_FRONTEND=noninteractive
-ENV TERM=xterm
-ENV PYTHONUNBUFFERED=1
-ENV PYTHONPATH=/app
-ENV DATABASE_URL=sqlite:///./data/zabbix_kiosk.db
-ENV SECRET_KEY=change-this-in-production-very-secret-key-min-32-chars
-ENV PORT=8000
+FROM node:18-alpine AS builder
 
 WORKDIR /app
 
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-    gcc curl && \
-    rm -rf /var/lib/apt/lists/*
+# Копируем package.json и package-lock.json
+COPY package*.json ./
 
-COPY backend/requirements.txt ./
-RUN pip install --no-cache-dir -r requirements.txt
+# Устанавливаем зависимости
+RUN npm ci
 
-COPY backend/ ./backend/
-COPY --from=frontend-builder /build/frontend/dist ./frontend/dist
+# Копируем исходный код
+COPY . .
 
-RUN mkdir -p /app/data
+# Собираем приложение
+RUN npm run build
 
-WORKDIR /app/backend
+# Финальный образ с только собранными файлами
+FROM nginx:alpine
 
-EXPOSE 8000
+# Копируем собранные файлы из builder
+COPY --from=builder /app/dist /usr/share/nginx/html
 
-CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Копируем nginx конфиг для SPA
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+
+EXPOSE 80
+
+CMD ["nginx", "-g", "daemon off;"]
