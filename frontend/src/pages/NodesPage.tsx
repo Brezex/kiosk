@@ -670,7 +670,9 @@ export default function NodesPage() {
                               : 'bg-slate-900 border-slate-600 hover:border-purple-500 hover:bg-slate-700'
                           }`}
                         >
-                          <div className="text-white text-lg">{host.name}</div>
+                          <div className="text-white text-lg">
+  {host.name !== host.host ? `${host.name} (${host.host})` : host.name}
+</div>
                           <div className="text-slate-400 text-sm mt-1">
                             ID: {host.hostid}
                             {alreadyTracked && ' · ✓ Уже отслеживается'}

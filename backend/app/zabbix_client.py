@@ -101,15 +101,16 @@ class ZabbixClient:
         return str(result)
     
     async def get_hosts(self, search: Optional[str] = None) -> List[Dict]:
-        """Получение списка хостов."""
+        """Получение списка хостов с поиском по полю host."""
         params: Dict[str, Any] = {
-            "output": ["hostid", "name", "host"],
+            "output": ["hostid", "host", "name", "status"],
             "selectInterfaces": ["ip"],
             "sortfield": "name",
-            "limit": 500,
+            "limit": 1000,
         }
         if search:
-            params["search"] = {"name": search}
+            # Ищем по полю host (техническое имя)
+            params["search"] = {"host": search}
             params["searchWildcardsEnabled"] = True
         return await self._call("host.get", params)
     
