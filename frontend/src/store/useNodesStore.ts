@@ -8,6 +8,7 @@ export interface TrackedNode {
   host_name: string;
   added_at: number;
   selected_metrics: string[];
+  chart_period: string; // <-- Добавили это поле
 }
 
 export type MetricFilter = 'all' | 'speed' | 'availability' | 'other';

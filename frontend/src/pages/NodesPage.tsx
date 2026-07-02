@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState } from 'react';
 import { proxyApi } from '../api/client';
 import { useStore } from '../store/useStore';
 import { useNodesStore, TrackedNode, MetricFilter } from '../store/useNodesStore';
@@ -76,10 +76,23 @@ function getPercentColor(value: string, units?: string): string {
   return 'text-green-400';
 }
 
+// Форматирование даты для оси X в зависимости от периода
+function formatDateForChart(timestamp: number, period: string): string {
+  const date = new Date(timestamp * 1000);
+  if (period === '1h' || period === '6h') {
+    return date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+  }
+  return date.toLocaleString('ru-RU', { 
+    day: '2-digit', 
+    month: '2-digit', 
+    hour: '2-digit', 
+    minute: '2-digit' 
+  });
+}
+
 export default function NodesPage() {
   const { zabbixServers } = useStore();
   
-  // Все состояния из Zustand стора (сохраняются между переключениями табов)
   const {
     trackedNodes,
     activeFilters,
@@ -93,7 +106,6 @@ export default function NodesPage() {
     setExpandedNodeId,
   } = useNodesStore();
   
-  // Временные состояния (не сохраняются)
   const [nodeMetrics, setNodeMetrics] = useState<NodeMetrics>({});
   const [metricHistory, setMetricHistory] = useState<MetricHistory>({});
   const [loading, setLoading] = useState(false);
@@ -102,7 +114,7 @@ export default function NodesPage() {
   const [hosts, setHosts] = useState<any[]>([]);
   const [loadingHosts, setLoadingHosts] = useState(false);
 
-  // Загрузка метрик для всех узлов
+  // Загрузка метрик
   useEffect(() => {
     if (trackedNodes.length === 0) {
       setNodeMetrics({});
@@ -161,7 +173,7 @@ export default function NodesPage() {
     };
   }, [trackedNodes]);
 
-  // Загрузка истории для выбранных метрик
+  // Загрузка истории (теперь учитывает chart_period каждого узла)
   useEffect(() => {
     const loadHistory = async () => {
       const history: MetricHistory = {};
@@ -169,11 +181,12 @@ export default function NodesPage() {
       for (const node of trackedNodes) {
         if (node.selected_metrics && node.selected_metrics.length > 0) {
           try {
+            const period = node.chart_period || '6h'; // Используем выбранный период
             const res = await proxyApi.history(
               node.server_id,
               node.selected_metrics,
-              '6h',
-              50
+              period,
+              100 // Увеличили лимит для больших периодов
             );
             
             res.data.forEach((item: any) => {
@@ -201,7 +214,6 @@ export default function NodesPage() {
     }
   }, [trackedNodes]);
 
-  // Загрузка хостов
   useEffect(() => {
     if (selectedServerId) {
       setLoadingHosts(true);
@@ -219,7 +231,6 @@ export default function NodesPage() {
     }
   }, [selectedServerId]);
 
-  // Фильтрация метрик для конкретного узла
   const getFilteredMetrics = (hostId: string): NodeMetric[] => {
     const metrics = nodeMetrics[hostId] || [];
     
@@ -235,7 +246,6 @@ export default function NodesPage() {
     });
   };
 
-  // Обработчики фильтров
   const handleFilterClick = (filter: MetricFilter) => {
     if (filter === 'all') {
       setActiveFilters(['all']);
@@ -250,7 +260,6 @@ export default function NodesPage() {
     }
   };
 
-  // Переключение выбора метрики
   const toggleMetricSelection = (nodeId: string, itemid: string) => {
     const node = trackedNodes.find(n => n.id === nodeId);
     if (!node) return;
@@ -270,7 +279,8 @@ export default function NodesPage() {
       host_id: host.hostid,
       host_name: host.name,
       added_at: Date.now(),
-      selected_metrics: []
+      selected_metrics: [],
+      chart_period: '6h' // Значение по умолчанию
     };
 
     if (trackedNodes.some(n => n.id === newNode.id)) {
@@ -294,14 +304,20 @@ export default function NodesPage() {
     setSelectedServerId(zabbixServers.length > 0 ? zabbixServers[0].id : null);
   };
 
-  // Генерация опций для графика
+  const periods = [
+    { value: '1h', label: '1 час' },
+    { value: '6h', label: '6 часов' },
+    { value: '24h', label: '24 часа' },
+    { value: '7d', label: '7 дней' },
+  ];
+
   const getChartOptions = (node: TrackedNode) => {
     const selectedMetrics = node.selected_metrics || [];
     if (selectedMetrics.length === 0) return null;
 
     const metrics = nodeMetrics[node.host_id] || [];
+    const period = node.chart_period || '6h';
     
-    // Группируем метрики по типу (скорость/доступность/остальное)
     const speedMetrics: string[] = [];
     const availabilityMetrics: string[] = [];
     const otherMetrics: string[] = [];
@@ -318,7 +334,6 @@ export default function NodesPage() {
       }
     });
 
-    // Если есть и скорость, и доступность - показываем сплит
     const showSplit = speedMetrics.length > 0 && availabilityMetrics.length > 0;
 
     const createSeries = (itemids: string[]) => {
@@ -330,16 +345,18 @@ export default function NodesPage() {
           name: metrics.find(m => m.itemid === itemid)?.name || itemid,
           type: 'line',
           data: sortedHistory.map(h => [
-            new Date(parseInt(h.clock) * 1000).toLocaleTimeString('ru-RU', { 
-              hour: '2-digit', 
-              minute: '2-digit' 
-            }),
+            formatDateForChart(parseInt(h.clock), period),
             parseFloat(h.value) || 0
           ]),
           smooth: true,
           symbol: 'none',
         };
       });
+    };
+
+    const baseXAxis = {
+      type: 'category' as const,
+      axisLabel: { color: '#94a3b8', fontSize: 11 }
     };
 
     if (showSplit) {
@@ -361,32 +378,12 @@ export default function NodesPage() {
           top: 0
         },
         xAxis: [
-          {
-            type: 'category',
-            gridIndex: 0,
-            data: createSeries(speedMetrics)[0]?.data?.map((d: any) => d[0]) || [],
-            axisLabel: { color: '#94a3b8', fontSize: 11 }
-          },
-          {
-            type: 'category',
-            gridIndex: 1,
-            data: createSeries(availabilityMetrics)[0]?.data?.map((d: any) => d[0]) || [],
-            axisLabel: { color: '#94a3b8', fontSize: 11 }
-          }
+          { ...baseXAxis, gridIndex: 0, data: createSeries(speedMetrics)[0]?.data?.map((d: any) => d[0]) || [] },
+          { ...baseXAxis, gridIndex: 1, data: createSeries(availabilityMetrics)[0]?.data?.map((d: any) => d[0]) || [] }
         ],
         yAxis: [
-          {
-            type: 'value',
-            gridIndex: 0,
-            axisLabel: { color: '#94a3b8', fontSize: 11 },
-            splitLine: { lineStyle: { color: '#334155' } }
-          },
-          {
-            type: 'value',
-            gridIndex: 1,
-            axisLabel: { color: '#94a3b8', fontSize: 11 },
-            splitLine: { lineStyle: { color: '#334155' } }
-          }
+          { type: 'value', gridIndex: 0, axisLabel: { color: '#94a3b8', fontSize: 11 }, splitLine: { lineStyle: { color: '#334155' } } },
+          { type: 'value', gridIndex: 1, axisLabel: { color: '#94a3b8', fontSize: 11 }, splitLine: { lineStyle: { color: '#334155' } } }
         ],
         series: [
           ...createSeries(speedMetrics).map(s => ({ ...s, xAxisIndex: 0, yAxisIndex: 0 })),
@@ -396,7 +393,6 @@ export default function NodesPage() {
       };
     }
 
-    // Обычный график
     const series = createSeries(selectedMetrics);
     
     return {
@@ -414,9 +410,10 @@ export default function NodesPage() {
         top: 0
       },
       xAxis: {
-        type: 'category',
+        ...baseXAxis,
         data: series[0]?.data?.map((d: any) => d[0]) || [],
-        axisLabel: { color: '#94a3b8', fontSize: 11 }
+        // Для 7 дней показываем не все метки, чтобы не было каши
+        interval: period === '7d' ? Math.floor((series[0]?.data?.length || 0) / 6) : 0
       },
       yAxis: {
         type: 'value',
@@ -460,6 +457,7 @@ export default function NodesPage() {
             const metrics = nodeMetrics[node.host_id] || [];
             const isExpanded = expandedNodeId === node.id;
             const chartOptions = getChartOptions(node);
+            const currentPeriod = node.chart_period || '6h';
 
             return (
               <div
@@ -498,7 +496,6 @@ export default function NodesPage() {
                 {/* Панель управления */}
                 {isExpanded && (
                   <div className="p-6 bg-slate-850 border-b border-slate-700">
-                    {/* Фильтры */}
                     <div className="flex gap-2 mb-4 flex-wrap">
                       <button
                         onClick={() => handleFilterClick('all')}
@@ -528,7 +525,7 @@ export default function NodesPage() {
                             : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
                         }`}
                       >
-                        🟢 Доступность
+                         Доступность
                       </button>
                       <button
                         onClick={() => handleFilterClick('other')}
@@ -542,7 +539,6 @@ export default function NodesPage() {
                       </button>
                     </div>
 
-                    {/* Поиск */}
                     <div className="mb-4">
                       <input
                         type="text"
@@ -553,7 +549,6 @@ export default function NodesPage() {
                       />
                     </div>
 
-                    {/* Список метрик */}
                     <div className="max-h-64 overflow-y-auto space-y-2">
                       {getFilteredMetrics(node.host_id).map((metric: NodeMetric) => {
                         const isSelected = node.selected_metrics?.includes(metric.itemid);
@@ -594,9 +589,26 @@ export default function NodesPage() {
                   </div>
                 )}
 
-                {/* График */}
+                {/* График с выбором периода */}
                 {chartOptions && (
                   <div className="p-6">
+                    {/* Кнопки выбора периода */}
+                    <div className="flex gap-2 mb-4">
+                      {periods.map((p) => (
+                        <button
+                          key={p.value}
+                          onClick={() => updateTrackedNode(node.id, { chart_period: p.value })}
+                          className={`px-3 py-1.5 rounded-md text-sm transition ${
+                            currentPeriod === p.value
+                              ? 'bg-blue-600 text-white'
+                              : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                          }`}
+                        >
+                          {p.label}
+                        </button>
+                      ))}
+                    </div>
+
                     <ReactECharts
                       option={chartOptions}
                       style={{ height: '250px', width: '100%' }}
