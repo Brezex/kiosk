@@ -1,5 +1,8 @@
 # database.py
 
+import os
+from pathlib import Path
+
 from sqlalchemy import create_engine
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker, declarative_base
@@ -16,6 +19,17 @@ if SQLALCHEMY_DATABASE_URL.startswith("sqlite://"):
     )
 else:
     SQLALCHEMY_ASYNC_DATABASE_URL = SQLALCHEMY_DATABASE_URL
+
+# Автоматически создаём папку для SQLite базы, если её нет
+# Это решает проблему падения при локальном запуске без Docker
+if SQLALCHEMY_DATABASE_URL.startswith("sqlite"):
+    # Извлекаем путь к файлу из URL
+    # sqlite:///./data/zabbix_kiosk.db -> ./data/zabbix_kiosk.db
+    # sqlite:////absolute/path.db -> /absolute/path.db
+    db_path_str = SQLALCHEMY_DATABASE_URL.split("///", 1)[-1]
+    db_path = Path(db_path_str)
+    if db_path.parent and not db_path.parent.exists():
+        os.makedirs(db_path.parent, exist_ok=True)
 
 # Синхронный движок (для скриптов и миграций)
 engine = create_engine(

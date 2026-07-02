@@ -1,4 +1,5 @@
 import os
+import json
 import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -10,7 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
-from app.database import init_db, async_session
+from app.database import init_db, SessionLocal
 from app.config import settings
 from app.routers import auth, dashboards, panels, proxy, zabbix_servers, notifications, users, statistics
 
@@ -82,37 +83,34 @@ app.include_router(proxy.router)
 app.include_router(zabbix_servers.router)
 app.include_router(notifications.router)
 app.include_router(users.router)
-app.include_router(statistics.router)  # Раскомментировано
+app.include_router(statistics.router)
 
 
 # ============ Kiosk Public Routes ============
 @app.get("/api/kiosk/state")
-async def kiosk_state():
+def kiosk_state():
     """Публичный endpoint для киоска - возвращает только общие дашборды"""
     from app.models import Dashboard, ScheduledNotification
     
-    async with async_session() as session:
+    db = SessionLocal()
+    try:
         # Только общие дашборды (user_id is NULL) в ротации
         # Используем selectinload для загрузки panels
-        result_dashboards = await session.execute(
-            select(Dashboard)
-            .where(Dashboard.in_rotation == True, Dashboard.user_id == None)
-            .options(selectinload(Dashboard.panels))
-            .order_by(Dashboard.sort_order)
-        )
-        dashboards_list = result_dashboards.scalars().all()
+        dashboards_list = db.query(Dashboard)\
+            .filter(Dashboard.in_rotation == True, Dashboard.user_id == None)\
+            .options(selectinload(Dashboard.panels))\
+            .order_by(Dashboard.sort_order)\
+            .all()
         
         # Календарные уведомления
         now = datetime.utcnow()
-        result_notifications = await session.execute(
-            select(ScheduledNotification)
-            .where(
+        scheduled = db.query(ScheduledNotification)\
+            .filter(
                 ScheduledNotification.is_active == True,
                 ScheduledNotification.scheduled_at <= now,
                 ScheduledNotification.is_sent == False
-            )
-        )
-        scheduled = result_notifications.scalars().all()
+            )\
+            .all()
         
         return {
             "dashboards": [
@@ -128,7 +126,7 @@ async def kiosk_state():
                             "title": p.title,
                             "position": p.position,
                             "size": p.size,
-                            "config": p.config if isinstance(p.config, dict) else __import__('json').loads(p.config) if p.config else {}
+                            "config": json.loads(p.config) if p.config else {}
                         }
                         for p in d.panels
                     ]
@@ -149,23 +147,24 @@ async def kiosk_state():
             "zabbix_connected": True,
             "global_rotation_interval": 30
         }
+    finally:
+        db.close()
 
 
 @app.get("/api/kiosk/dashboards")
-async def kiosk_dashboards():
+def kiosk_dashboards():
     """Публичный endpoint для получения только общих дашбордов"""
     from app.models import Dashboard
     
-    async with async_session() as session:
+    db = SessionLocal()
+    try:
         # Только общие дашборды
         # Используем selectinload для загрузки panels
-        result = await session.execute(
-            select(Dashboard)
-            .where(Dashboard.in_rotation == True, Dashboard.user_id == None)
-            .options(selectinload(Dashboard.panels))
-            .order_by(Dashboard.sort_order)
-        )
-        dashboards_list = result.scalars().all()
+        dashboards_list = db.query(Dashboard)\
+            .filter(Dashboard.in_rotation == True, Dashboard.user_id == None)\
+            .options(selectinload(Dashboard.panels))\
+            .order_by(Dashboard.sort_order)\
+            .all()
         
         return [
             {
@@ -177,27 +176,28 @@ async def kiosk_dashboards():
                         "id": p.id,
                         "panel_type": p.panel_type,
                         "title": p.title,
-                        "config": p.config if isinstance(p.config, dict) else __import__('json').loads(p.config) if p.config else {}
+                        "config": json.loads(p.config) if p.config else {}
                     }
                     for p in d.panels
                 ]
             }
             for d in dashboards_list
         ]
+    finally:
+        db.close()
 
 
 @app.get("/api/kiosk/notifications")
-async def kiosk_notifications():
+def kiosk_notifications():
     """Публичный endpoint для получения календарных уведомлений"""
     from app.models import ScheduledNotification
     
-    async with async_session() as session:
-        result = await session.execute(
-            select(ScheduledNotification)
-            .where(ScheduledNotification.is_active == True)
-            .order_by(ScheduledNotification.scheduled_at)
-        )
-        notifications_list = result.scalars().all()
+    db = SessionLocal()
+    try:
+        notifications_list = db.query(ScheduledNotification)\
+            .filter(ScheduledNotification.is_active == True)\
+            .order_by(ScheduledNotification.scheduled_at)\
+            .all()
         
         return [
             {
@@ -210,6 +210,8 @@ async def kiosk_notifications():
             }
             for n in notifications_list
         ]
+    finally:
+        db.close()
 
 
 # ============ Раздача статики фронтенда ============
