@@ -371,11 +371,12 @@ export default function PanelEditor({ panel, serverId: initialServerId, onSave, 
                   onChange={(e) => updateConfig('unit', e.target.value)}
                   className="w-full px-4 py-3 bg-slate-900 border border-slate-600 rounded-lg text-white text-lg"
                 >
-                  <option value="auto">Авто (из Zabbix)</option>
+                  <option value="auto">🔄 Авто (из Zabbix)</option>
                   <option value="bps">бит/с</option>
                   <option value="Kbps">Кбит/с</option>
                   <option value="Mbps">Мбит/с</option>
                   <option value="Gbps">Гбит/с</option>
+                  <option value="Tbps">Тбит/с</option>
                   <option value="Bps">Байт/с</option>
                   <option value="KBps">КБайт/с</option>
                   <option value="MBps">МБайт/с</option>
