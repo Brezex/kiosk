@@ -18,8 +18,6 @@ def _get_fernet() -> Fernet:
     """Получение Fernet-шифратора (ленивая инициализация)."""
     global _fernet
     if _fernet is None:
-        # secret_key должен быть 32 байта base64 для Fernet
-        # Если ключ не подходит — генерируем детерминированный из него
         import base64
         import hashlib
         key_bytes = hashlib.sha256(settings.SECRET_KEY.encode()).digest()
@@ -64,9 +62,7 @@ class ZabbixClient:
             "id": self._next_id(),
         }
         
-        # apiinfo.version не требует авторизации
         if method != "apiinfo.version":
-            # Для Zabbix 6.4+ используем заголовок Authorization
             headers = {"Authorization": f"Bearer {self.api_token}"}
         else:
             headers = {}
@@ -124,7 +120,7 @@ class ZabbixClient:
     ) -> List[Dict]:
         """Получение items для хоста."""
         params: Dict[str, Any] = {
-            "output": ["itemid", "name", "key_", "value_type", "units", "delay"],
+            "output": ["itemid", "name", "key_", "value_type", "units", "delay", "lastvalue", "lastclock"],
             "hostids": [host_id],
             "sortfield": "name",
             "webitems": True,
@@ -142,11 +138,14 @@ class ZabbixClient:
         limit: int = 1000,
     ) -> List[Dict]:
         """Получение истории значений."""
-        # Сначала получаем value_type первого item'а
+        if not item_ids:
+            return []
+        
+        # Получаем value_type первого item'а
         items = await self._call(
             "item.get",
             {
-                "itemids": item_ids,
+                "itemids": [item_ids[0]],
                 "output": ["value_type"],
                 "limit": 1,
             },
@@ -168,20 +167,33 @@ class ZabbixClient:
         time_from = int((datetime.now() - delta).timestamp())
         time_till = int(datetime.now().timestamp())
         
-        result = await self._call(
-            "history.get",
-            {
-                "output": "extend",
-                "history": value_type,
-                "itemids": item_ids,
-                "sortfield": "clock",
-                "sortorder": "ASC",
-                "time_from": time_from,
-                "time_till": time_till,
-                "limit": limit,
-            },
-        )
-        return result
+        # Разбиваем item_ids на батчи по 20 штук
+        BATCH_SIZE = 20
+        all_results = []
+        
+        for i in range(0, len(item_ids), BATCH_SIZE):
+            batch = item_ids[i:i + BATCH_SIZE]
+            
+            try:
+                result = await self._call(
+                    "history.get",
+                    {
+                        "output": "extend",
+                        "history": value_type,
+                        "itemids": batch,
+                        "sortfield": "clock",
+                        "sortorder": "DESC",
+                        "time_from": time_from,
+                        "time_till": time_till,
+                        "limit": limit,
+                    },
+                    timeout=30,
+                )
+                all_results.extend(result)
+            except Exception as e:
+                logger.warning(f"Failed to fetch history for batch {i//BATCH_SIZE + 1}: {e}")
+        
+        return all_results
     
     async def get_problems(
         self,

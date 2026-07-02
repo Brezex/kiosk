@@ -66,7 +66,8 @@ async def get_items(
     
     client = await get_client_for_server(server.api_url, server.api_token_encrypted)
     result = await client.get_items(data.host_id, search=data.search)
-    zabbix_cache.set(key, result, ttl=300)
+    # Уменьшаем TTL до 60 секунд, чтобы lastvalue был актуальным
+    zabbix_cache.set(key, result, ttl=60)
     return result
 
 

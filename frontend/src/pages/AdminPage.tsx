@@ -7,8 +7,9 @@ import ZabbixServerManager from '../components/ZabbixServerManager';
 import NotificationsPage from './NotificationsPage';
 import UsersPage from './UsersPage';
 import StatisticsPage from './StatisticsPage';
+import NodesPage from './NodesPage';
 
-type Tab = 'dashboards' | 'servers' | 'notifications' | 'users' | 'statistics';
+type Tab = 'dashboards' | 'nodes' | 'servers' | 'notifications' | 'users' | 'statistics';
 
 // Единый стиль для кнопок
 const btnOutline = "px-6 py-3 border-2 border-purple-600 text-purple-300 hover:bg-purple-600 hover:text-white rounded-lg text-lg transition-all duration-200 font-medium";
@@ -20,7 +21,6 @@ export default function AdminPage() {
   const navigate = useNavigate();
   const [tab, setTab] = useState<Tab>('dashboards');
   const [selectedDashboardId, setSelectedDashboardId] = useState<number | null>(null);
-
   const isAdmin = user?.role === 'admin';
 
   useEffect(() => {
@@ -32,6 +32,7 @@ export default function AdminPage() {
       navigate('/login');
       return;
     }
+
     if (isAuthenticated) {
       loadDashboards();
       loadServers();
@@ -71,16 +72,27 @@ export default function AdminPage() {
           >
             🎛️ Дашборды
           </button>
-          {/*{<button
-  onClick={() => setTab('statistics')}
-  className={`w-full text-left px-4 py-3 rounded-lg text-lg transition ${
-    tab === 'statistics' ? 'bg-purple-600 text-white' : 'text-slate-300 hover:bg-slate-700'
-  }`}
->
-  📊 Статистика
-</button>*/}
 
-          
+          <button
+            onClick={() => setTab('nodes')}
+            className={`w-full text-left px-4 py-3 rounded-lg text-lg transition ${
+              tab === 'nodes' ? 'bg-purple-600 text-white' : 'text-slate-300 hover:bg-slate-700'
+            }`}
+          >
+            🖥️ Узлы
+          </button>
+
+          {/*{
+            <button
+              onClick={() => setTab('statistics')}
+              className={`w-full text-left px-4 py-3 rounded-lg text-lg transition ${
+                tab === 'statistics' ? 'bg-purple-600 text-white' : 'text-slate-300 hover:bg-slate-700'
+              }`}
+            >
+              📊 Статистика
+            </button>
+          }*/}
+
           {isAdmin && (
             <>
               <button
@@ -91,6 +103,7 @@ export default function AdminPage() {
               >
                 🔌 Подключения
               </button>
+
               <button
                 onClick={() => setTab('notifications')}
                 className={`w-full text-left px-4 py-3 rounded-lg text-lg transition ${
@@ -99,6 +112,7 @@ export default function AdminPage() {
               >
                 🔔 Уведомления
               </button>
+
               <button
                 onClick={() => setTab('users')}
                 className={`w-full text-left px-4 py-3 rounded-lg text-lg transition ${
@@ -116,15 +130,14 @@ export default function AdminPage() {
               target="_blank"
               className="block px-4 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-lg text-center transition"
             >
-              ️ Просмотр
+              👁️ Просмотр
             </a>
           </div>
         </nav>
 
         <div className="p-4 border-t border-slate-700">
           <div className="text-slate-400 text-sm mb-2">
-             {user?.username} 
-            {isAdmin ? ' (admin)' : ' (viewer)'}
+            {user?.username} {isAdmin ? ' (admin)' : ' (viewer)'}
           </div>
           <button
             onClick={handleLogout}
@@ -137,7 +150,6 @@ export default function AdminPage() {
 
       {/* Main content */}
       <main className="flex-1 overflow-auto">
-        
         {tab === 'dashboards' && !selectedDashboardId && (
           <DashboardsList
             dashboards={dashboards}
@@ -147,6 +159,7 @@ export default function AdminPage() {
             currentUserId={user?.id}
           />
         )}
+
         {tab === 'dashboards' && selectedDashboardId && (
           <DashboardEditor
             dashboardId={selectedDashboardId}
@@ -154,11 +167,16 @@ export default function AdminPage() {
             isAdmin={isAdmin}
           />
         )}
+
+        {tab === 'nodes' && <NodesPage />}
+
         {tab === 'statistics' && <StatisticsPage />}
+
         {isAdmin && tab === 'servers' && <ZabbixServerManager onRefresh={loadServers} />}
+
         {isAdmin && tab === 'notifications' && <NotificationsPage />}
+
         {isAdmin && tab === 'users' && <UsersPage />}
-        
       </main>
     </div>
   );
@@ -236,7 +254,6 @@ function DashboardsList({ dashboards, onSelect, onRefresh, isAdmin, currentUserI
     <div className="p-8">
       <div className="flex items-center justify-between mb-8">
         <h2 className="text-4xl font-bold text-white">Дашборды</h2>
-        
         <div className="flex gap-3 items-center">
           {/* Переключатель Общие/Мои */}
           <div className="flex bg-slate-800 rounded-lg border border-slate-700 p-1">
@@ -257,7 +274,7 @@ function DashboardsList({ dashboards, onSelect, onRefresh, isAdmin, currentUserI
               👤 Мои
             </button>
           </div>
-          
+
           {isAdmin && (
             <div className="flex gap-3">
               <button
@@ -291,8 +308,8 @@ function DashboardsList({ dashboards, onSelect, onRefresh, isAdmin, currentUserI
 
       {filteredDashboards.length === 0 ? (
         <div className="text-center py-16 text-slate-400 text-xl">
-          {showPersonalOnly 
-            ? 'У вас нет личных дашбордов. Создайте первый!' 
+          {showPersonalOnly
+            ? 'У вас нет личных дашбордов. Создайте первый!'
             : (isAdmin ? 'Нет дашбордов. Создайте первый!' : 'Нет доступных дашбордов')}
         </div>
       ) : (
@@ -321,7 +338,7 @@ function DashboardsList({ dashboards, onSelect, onRefresh, isAdmin, currentUserI
                   {d.rotation_interval && ` · Ротация: ${d.rotation_interval}с`}
                 </div>
               </div>
-              
+
               {(isAdmin || d.user_id === currentUserId) && (
                 <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
                   {/* Просмотр */}
@@ -332,7 +349,7 @@ function DashboardsList({ dashboards, onSelect, onRefresh, isAdmin, currentUserI
                   >
                     👁️ Просмотр
                   </button>
-                  
+
                   {/* Ротация — только для admin */}
                   {isAdmin && (
                     <button
@@ -347,7 +364,7 @@ function DashboardsList({ dashboards, onSelect, onRefresh, isAdmin, currentUserI
                       {d.in_rotation ? '✓ В ротации' : '○ Не в ротации'}
                     </button>
                   )}
-                  
+
                   {/* Экспорт */}
                   <button
                     onClick={() => handleExport(d.id)}
@@ -356,7 +373,7 @@ function DashboardsList({ dashboards, onSelect, onRefresh, isAdmin, currentUserI
                   >
                     📤 Экспорт
                   </button>
-                  
+
                   {/* Удалить */}
                   <button
                     onClick={() => handleDelete(d.id, d.name)}
@@ -406,7 +423,6 @@ function DashboardsList({ dashboards, onSelect, onRefresh, isAdmin, currentUserI
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50">
           <div className="bg-slate-800 border border-purple-600 rounded-2xl p-6 w-full max-w-md">
             <h3 className="text-2xl font-bold text-white mb-4">Настройки ротации дашбордов</h3>
-            
             <div className="mb-6">
               <label className="block text-slate-300 text-lg mb-2">
                 Интервал переключения (секунды)
@@ -423,7 +439,6 @@ function DashboardsList({ dashboards, onSelect, onRefresh, isAdmin, currentUserI
                 От 10 до 300 секунд. Рекомендуется 30-60 секунд.
               </p>
             </div>
-
             <div className="flex gap-3">
               <button
                 onClick={handleSaveRotationSettings}
