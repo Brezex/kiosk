@@ -546,14 +546,14 @@ export default function PanelEditor({ panel, serverId: initialServerId, onSave, 
             onClick={handleSave}
             className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xl transition"
           >
-            💾 Сохранить
+            Сохранить
           </button>
-          <button
-            onClick={onClose}
-            className="flex-1 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-xl transition"
-          >
-            ❌ Отмена
-          </button>
+<button
+  onClick={onClose}
+  className="flex-1 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-xl transition"
+>
+  Закрыть
+</button>
         </div>
       </div>
     </div>

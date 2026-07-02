@@ -80,9 +80,9 @@ export default function NotificationsPage() {
         <h2 className="text-4xl font-bold text-white">Уведомления и напоминания</h2>
         <button
           onClick={() => setShowForm(true)}
-          className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-lg transition"
+          className="px-6 py-3 bg-purple-600 hover:bg-blue-700 text-white rounded-lg text-lg transition"
         >
-           Добавить
+          ➕ Добавить
         </button>
       </div>
 

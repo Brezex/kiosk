@@ -17,6 +17,7 @@ interface Props {
     // Новая структура (множественные метрики)
     items?: ChartMetric[];
     unit?: string;
+    server_id?: number; // ← Добавили это поле
     
     // Старая структура (обратная совместимость)
     item_id?: string;
@@ -65,6 +66,9 @@ function formatValue(value: number, unit: string): string {
 }
 
 export default function ChartPanel({ config, serverId }: Props) {
+  // Используем serverId из дашборда, либо из настроек самой панели
+  const effectiveServerId = serverId || config.server_id;
+
   const [data, setData] = useState<Record<string, any[]>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -81,7 +85,7 @@ export default function ChartPanel({ config, serverId }: Props) {
       : [];
 
   const loadData = async () => {
-    if (!serverId || metrics.length === 0) {
+    if (!effectiveServerId || metrics.length === 0) {
       setError('Не настроен источник данных');
       return;
     }
@@ -90,7 +94,7 @@ export default function ChartPanel({ config, serverId }: Props) {
     try {
       const itemIds = metrics.map(m => m.item_id);
       const res = await proxyApi.history(
-        serverId,
+        effectiveServerId,
         itemIds,
         config.period || '1h',
         1000
@@ -121,7 +125,7 @@ export default function ChartPanel({ config, serverId }: Props) {
     loadData();
     const interval = setInterval(loadData, 60000);
     return () => clearInterval(interval);
-  }, [serverId, JSON.stringify(metrics), config.period]);
+  }, [effectiveServerId, JSON.stringify(metrics), config.period]);
 
   if (!serverId || metrics.length === 0) {
     return (

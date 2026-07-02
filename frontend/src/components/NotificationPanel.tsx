@@ -28,14 +28,16 @@ const severityEmoji: Record<string, string> = {
 export default function NotificationPanel({ notifications }: Props) {
   const [selected, setSelected] = useState<Notification | null>(null);
   
-  return (
-    <div className="h-full flex flex-col bg-slate-800">
-      <div className="p-6 border-b border-slate-700">
-        <h2 className="text-3xl font-bold text-white">🔔 Уведомления</h2>
-        <div className="text-slate-400 text-lg mt-1">
+return (
+  <div className="h-full flex flex-col bg-slate-800">
+    <div className="p-6 pl-24 border-b border-slate-700">
+      <div className="flex items-baseline gap-3">
+        <h2 className="text-2xl font-bold text-white">Уведомления</h2>
+        <div className="text-slate-400 text-lg">
           {notifications.filter(n => n.status === 'active').length} активных
         </div>
       </div>
+    </div>
       
       <div className="flex-1 overflow-y-auto p-4 space-y-3">
         {notifications.length === 0 ? (

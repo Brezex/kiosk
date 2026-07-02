@@ -130,7 +130,7 @@ export default function AdminPage() {
               target="_blank"
               className="block px-4 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-lg text-center transition"
             >
-              👁️ Просмотр
+              Режим киоска
             </a>
           </div>
         </nav>
@@ -347,7 +347,7 @@ function DashboardsList({ dashboards, onSelect, onRefresh, isAdmin, currentUserI
                     className={btnOutlineSmall}
                     title="Просмотр в режиме киоска"
                   >
-                    👁️ Просмотр
+                    👁️
                   </button>
 
                   {/* Ротация — только для admin */}
@@ -357,7 +357,7 @@ function DashboardsList({ dashboards, onSelect, onRefresh, isAdmin, currentUserI
                       className={`px-4 py-2 border-2 rounded-lg text-base transition-all duration-200 font-medium ${
                         d.in_rotation
                           ? 'border-green-600 text-green-300 hover:bg-green-600 hover:text-white'
-                          : 'border-purple-600 text-purple-300 hover:bg-purple-600 hover:text-white'
+                          : 'border-yellow-600 text-purple-300 hover:bg-purple-600 hover:text-white'
                       }`}
                       title="Участие в ротации"
                     >
@@ -371,7 +371,7 @@ function DashboardsList({ dashboards, onSelect, onRefresh, isAdmin, currentUserI
                     className={btnOutlineSmall}
                     title="Экспорт дашборда"
                   >
-                    📤 Экспорт
+                    📤
                   </button>
 
                   {/* Удалить */}
@@ -380,7 +380,7 @@ function DashboardsList({ dashboards, onSelect, onRefresh, isAdmin, currentUserI
                     className={btnOutlineRed}
                     title="Удалить дашборд"
                   >
-                    🗑️ Удалить
+                    🗑️
                   </button>
                 </div>
               )}

@@ -223,7 +223,7 @@ const loadState = async () => {
 
       <button
         onClick={() => setShowNotifications(!showNotifications)}
-        className="fixed top-4 left-4 z-50 px-4 py-2 bg-slate-800/80 hover:bg-slate-700 text-white rounded-lg text-lg transition shadow-lg border border-slate-700 backdrop-blur-sm"
+        className="fixed top-3 left-4 z-50 px-4 py-2 bg-slate-800/80 hover:bg-slate-700 text-white rounded-lg text-lg transition shadow-lg border border-slate-700 backdrop-blur-sm"
         title={showNotifications ? 'Скрыть уведомления' : 'Показать уведомления'}
       >
         {showNotifications ? '🔔' : '🔕'}

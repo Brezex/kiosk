@@ -61,7 +61,7 @@ export default function ZabbixServerManager({ onRefresh }: Props) {
         <h2 className="text-4xl font-bold text-white">Zabbix-серверы</h2>
         <button
           onClick={handleCreate}
-          className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-lg transition"
+          className="px-6 py-3 bg-purple-600 hover:bg-blue-700 text-white rounded-lg text-lg transition"
         >
           ➕ Добавить сервер
         </button>
