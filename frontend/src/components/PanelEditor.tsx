@@ -3,6 +3,14 @@ import { proxyApi } from '../api/client';
 import { useStore } from '../store/useStore';
 import MatrixEditor from './MatrixEditor';
 
+interface ChartMetric {
+  item_id: string;
+  item_name: string;
+  color?: string;
+  host_id?: string;
+  host_name?: string;
+}
+
 interface Props {
   panel: any;
   serverId?: number;
@@ -20,7 +28,8 @@ export default function PanelEditor({ panel, serverId: initialServerId, onSave, 
   
   const [form, setForm] = useState({ ...panel, config: { ...panel.config } });
   const [hosts, setHosts] = useState<any[]>([]);
-  const [items, setItems] = useState<any[]>([]);
+  // Храним items по хостам: host_id -> список items
+  const [itemsByHost, setItemsByHost] = useState<Map<string, any[]>>(new Map());
   const [showMatrixEditor, setShowMatrixEditor] = useState(false);
 
   console.log('📥 PanelEditor открыт:', {
@@ -30,10 +39,15 @@ export default function PanelEditor({ panel, serverId: initialServerId, onSave, 
     config: panel.config
   });
 
+  // Получение items для конкретного хоста
+  const getItemsForHost = (hostId: string): any[] => {
+    return itemsByHost.get(hostId) || [];
+  };
+
   // При смене serverId - загружаем хосты
   useEffect(() => {
     if (serverId && !['matrix', 'image', 'text'].includes(form.panel_type)) {
-      console.log(' Загрузка хостов для serverId:', serverId);
+      console.log('🔍 Загрузка хостов для serverId:', serverId);
       proxyApi.hosts(serverId)
         .then((res) => {
           setHosts(res.data);
@@ -45,27 +59,61 @@ export default function PanelEditor({ panel, serverId: initialServerId, onSave, 
     }
   }, [serverId, form.panel_type]);
 
-  // При наличии host_id - загружаем items
+  // Загружаем items для всех хостов, которые используются в метриках
   useEffect(() => {
-    const hostId = form.config.host_id;
-    if (serverId && hostId && !['matrix', 'image', 'text'].includes(form.panel_type)) {
-      console.log('🔍 Загрузка items для hostId:', hostId);
-      proxyApi.items(serverId, hostId)
-        .then((res) => {
-          setItems(res.data);
-          console.log('✅ Загружено items:', res.data.length);
-          
-          // Проверяем, есть ли выбранный item в списке
-          const currentItemId = form.config.item_id;
-          if (currentItemId && !res.data.find((i: any) => i.itemid === currentItemId)) {
-            console.warn('️ Выбранный item не найден в списке');
-          }
-        })
-        .catch((err) => {
-          console.error('❌ Ошибка загрузки items:', err);
-        });
+    if (!serverId || ['matrix', 'image', 'text'].includes(form.panel_type)) {
+      return;
     }
-  }, [serverId, form.config.host_id, form.panel_type]);
+
+    // Собираем все уникальные host_id
+    const hostIds = new Set<string>();
+
+    // Для chart - из списка метрик
+    if (form.panel_type === 'chart' && form.config.items) {
+      form.config.items.forEach((metric: ChartMetric) => {
+        if (metric.host_id) {
+          hostIds.add(metric.host_id);
+        }
+      });
+    }
+
+    // Для single_value - из config.host_id
+    if (form.panel_type === 'single_value' && form.config.host_id) {
+      hostIds.add(form.config.host_id);
+    }
+
+    if (hostIds.size === 0) {
+      return;
+    }
+
+    console.log('🔍 Загрузка items для хостов:', Array.from(hostIds));
+
+    // Загружаем items для каждого хоста
+    const loadItemsForHost = async (hostId: string) => {
+      try {
+        const res = await proxyApi.items(serverId, hostId);
+        console.log(`✅ Загружено items для хоста ${hostId}:`, res.data.length);
+
+        setItemsByHost(prev => {
+          const newMap = new Map(prev);
+          newMap.set(hostId, res.data);
+          return newMap;
+        });
+      } catch (err) {
+        console.error(`❌ Ошибка загрузки items для хоста ${hostId}:`, err);
+      }
+    };
+
+    hostIds.forEach(hostId => {
+      loadItemsForHost(hostId);
+    });
+  }, [
+    serverId,
+    form.panel_type,
+    form.panel_type === 'chart'
+      ? JSON.stringify((form.config.items || []).map((m: ChartMetric) => m.host_id))
+      : form.config.host_id
+  ]);
 
   const updateConfig = (key: string, value: any) => {
     setForm({ ...form, config: { ...form.config, [key]: value } });
@@ -110,9 +158,9 @@ export default function PanelEditor({ panel, serverId: initialServerId, onSave, 
                 className="w-full px-4 py-3 bg-slate-900 border border-slate-600 rounded-lg text-white text-lg"
               >
                 <option value="chart">📈 График</option>
-                <option value="single_value"> Текущее значение</option>
+                <option value="single_value">📊 Текущее значение</option>
                 <option value="image">🖼️ Изображение</option>
-                <option value="text"> Текст</option>
+                <option value="text">📝 Текст</option>
                 <option value="matrix">🟩 Матрица</option>
               </select>
             </div>
@@ -143,7 +191,7 @@ export default function PanelEditor({ panel, serverId: initialServerId, onSave, 
           {(needsZabbixData || form.panel_type === 'matrix') && (
             <div className="pt-4 border-t border-slate-700">
               <label className="block text-slate-300 text-lg mb-2">
-                 Zabbix-сервер {initialServerId && <span className="text-slate-500 text-sm">(из настроек дашборда)</span>}
+                🔌 Zabbix-сервер {initialServerId && <span className="text-slate-500 text-sm">(из настроек дашборда)</span>}
               </label>
               <select
                 value={serverId || ''}
@@ -162,63 +210,129 @@ export default function PanelEditor({ panel, serverId: initialServerId, onSave, 
           {form.panel_type === 'chart' && serverId && (
             <div className="space-y-4 pt-4 border-t border-slate-700">
               <h4 className="text-xl font-semibold text-white">Настройки графика</h4>
-              
+
+              {/* Список добавленных метрик */}
               <div>
-                <label className="block text-slate-300 text-lg mb-2">Хост</label>
-                <select
-                  value={form.config.host_id || ''}
-                  onChange={(e) => {
-                    const hostId = e.target.value;
-                    setForm({
-                      ...form,
-                      config: {
-                        ...form.config,
-                        host_id: hostId,
-                        item_id: '',
-                        item_name: '',
-                      }
-                    });
+                <label className="block text-slate-300 text-lg mb-2">
+                  Метрики ({(form.config.items || []).length})
+                </label>
+
+                {(form.config.items || []).map((metric: ChartMetric, index: number) => {
+                  const hostItems = getItemsForHost(metric.host_id || '');
+                  const isLoading = !!metric.host_id && hostItems.length === 0;
+
+                  return (
+                    <div key={index} className="mb-3 p-4 bg-slate-900 rounded-lg space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-white font-semibold">Метрика #{index + 1}</span>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="color"
+                            value={metric.color || '#3b82f6'}
+                            onChange={(e) => {
+                              const newItems = [...(form.config.items || [])];
+                              newItems[index] = { ...newItems[index], color: e.target.value };
+                              updateConfig('items', newItems);
+                            }}
+                            className="w-10 h-10 bg-transparent border-0 cursor-pointer"
+                          />
+                          <button
+                            onClick={() => {
+                              const newItems = (form.config.items || []).filter((_: any, i: number) => i !== index);
+                              updateConfig('items', newItems);
+                            }}
+                            className="px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm"
+                          >
+                            ✕ Удалить
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Выбор хоста для этой метрики */}
+                      <div>
+                        <label className="block text-slate-400 text-sm mb-1">Хост</label>
+                        <select
+                          value={metric.host_id || ''}
+                          onChange={(e) => {
+                            const hostId = e.target.value;
+                            const host = hosts.find(h => h.hostid === hostId);
+                            const newItems = [...(form.config.items || [])];
+                            newItems[index] = {
+                              ...newItems[index],
+                              host_id: hostId,
+                              host_name: host?.name || '',
+                              // Сбрасываем метрику при смене хоста
+                              item_id: '',
+                              item_name: ''
+                            };
+                            updateConfig('items', newItems);
+                          }}
+                          className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-white"
+                        >
+                          <option value="">— выберите хост —</option>
+                          {hosts.map((h) => (
+                            <option key={h.hostid} value={h.hostid}>{h.name}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Выбор метрики для этого хоста */}
+                      <div>
+                        <label className="block text-slate-400 text-sm mb-1">
+                          Метрика {isLoading && '(загрузка...)'}
+                        </label>
+                        <select
+                          value={metric.item_id || ''}
+                          onChange={(e) => {
+                            const itemId = e.target.value;
+                            const item = hostItems.find(i => i.itemid === itemId);
+                            const newItems = [...(form.config.items || [])];
+                            newItems[index] = {
+                              ...newItems[index],
+                              item_id: itemId,
+                              item_name: item?.name || ''
+                            };
+                            updateConfig('items', newItems);
+                          }}
+                          className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-white"
+                          disabled={!metric.host_id || isLoading}
+                        >
+                          <option value="">— выберите метрику —</option>
+                          {hostItems.map((i) => (
+                            <option key={i.itemid} value={i.itemid}>{i.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {/* Кнопка добавления новой метрики */}
+                <button
+                  onClick={() => {
+                    const newMetric: ChartMetric = {
+                      item_id: '',
+                      item_name: '',
+                      host_id: '',
+                      host_name: '',
+                      color: ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899'][
+                        (form.config.items || []).length % 6
+                      ]
+                    };
+                    const newItems = [...(form.config.items || []), newMetric];
+                    updateConfig('items', newItems);
                   }}
-                  className="w-full px-4 py-3 bg-slate-900 border border-slate-600 rounded-lg text-white text-lg"
+                  className="w-full py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg text-lg transition"
                 >
-                  <option value="">— выберите хост —</option>
-                  {hosts.map((h) => (
-                    <option key={h.hostid} value={h.hostid}>{h.name}</option>
-                  ))}
-                </select>
-                {hosts.length === 0 && serverId && (
-                  <p className="text-yellow-400 text-sm mt-2">⏳ Загрузка хостов...</p>
+                  + Добавить метрику
+                </button>
+
+                {(form.config.items || []).length === 0 && (
+                  <p className="text-yellow-400 text-sm mt-2">⚠️ Добавьте хотя бы одну метрику</p>
                 )}
               </div>
 
-              <div>
-                <label className="block text-slate-300 text-lg mb-2">
-                  Метрика {items.length === 0 && form.config.host_id && '(загрузка...)'}
-                </label>
-                <select
-                  value={form.config.item_id || ''}
-                  onChange={(e) => {
-                    const itemId = e.target.value;
-                    const item = items.find((i) => i.itemid === itemId);
-                    setForm({
-                      ...form,
-                      config: {
-                        ...form.config,
-                        item_id: itemId,
-                        item_name: item?.name || '',
-                      }
-                    });
-                  }}
-                  className="w-full px-4 py-3 bg-slate-900 border border-slate-600 rounded-lg text-white text-lg"
-                  disabled={!form.config.host_id || items.length === 0}
-                >
-                  <option value="">— выберите метрику —</option>
-                  {items.map((i) => (
-                    <option key={i.itemid} value={i.itemid}>{i.name}</option>
-                  ))}
-                </select>
-              </div>
-
+              {/* Настройки отображения */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-slate-300 text-lg mb-2">Период</label>
@@ -234,6 +348,7 @@ export default function PanelEditor({ panel, serverId: initialServerId, onSave, 
                     <option value="7d">7 дней</option>
                   </select>
                 </div>
+
                 <div>
                   <label className="block text-slate-300 text-lg mb-2">Тип графика</label>
                   <select
@@ -247,6 +362,28 @@ export default function PanelEditor({ panel, serverId: initialServerId, onSave, 
                   </select>
                 </div>
               </div>
+
+              {/* Выбор единиц измерения */}
+              <div>
+                <label className="block text-slate-300 text-lg mb-2">Единицы измерения</label>
+                <select
+                  value={form.config.unit || 'auto'}
+                  onChange={(e) => updateConfig('unit', e.target.value)}
+                  className="w-full px-4 py-3 bg-slate-900 border border-slate-600 rounded-lg text-white text-lg"
+                >
+                  <option value="auto">Авто (из Zabbix)</option>
+                  <option value="bps">бит/с</option>
+                  <option value="Kbps">Кбит/с</option>
+                  <option value="Mbps">Мбит/с</option>
+                  <option value="Gbps">Гбит/с</option>
+                  <option value="Bps">Байт/с</option>
+                  <option value="KBps">КБайт/с</option>
+                  <option value="MBps">МБайт/с</option>
+                  <option value="GBps">ГБайт/с</option>
+                  <option value="percent">Проценты (%)</option>
+                  <option value="short">Короткий формат (K, M, G)</option>
+                </select>
+              </div>
             </div>
           )}
 
@@ -254,7 +391,7 @@ export default function PanelEditor({ panel, serverId: initialServerId, onSave, 
           {form.panel_type === 'single_value' && serverId && (
             <div className="space-y-4 pt-4 border-t border-slate-700">
               <h4 className="text-xl font-semibold text-white">Текущее значение</h4>
-              
+
               <div>
                 <label className="block text-slate-300 text-lg mb-2">Хост</label>
                 <select
@@ -283,13 +420,14 @@ export default function PanelEditor({ panel, serverId: initialServerId, onSave, 
 
               <div>
                 <label className="block text-slate-300 text-lg mb-2">
-                  Метрика {items.length === 0 && form.config.host_id && '(загрузка...)'}
+                  Метрика {form.config.host_id && getItemsForHost(form.config.host_id).length === 0 && '(загрузка...)'}
                 </label>
                 <select
                   value={form.config.item_id || ''}
                   onChange={(e) => {
                     const itemId = e.target.value;
-                    const item = items.find((i) => i.itemid === itemId);
+                    const hostItems = getItemsForHost(form.config.host_id || '');
+                    const item = hostItems.find((i) => i.itemid === itemId);
                     setForm({
                       ...form,
                       config: {
@@ -301,10 +439,10 @@ export default function PanelEditor({ panel, serverId: initialServerId, onSave, 
                     });
                   }}
                   className="w-full px-4 py-3 bg-slate-900 border border-slate-600 rounded-lg text-white text-lg"
-                  disabled={!form.config.host_id || items.length === 0}
+                  disabled={!form.config.host_id || getItemsForHost(form.config.host_id).length === 0}
                 >
                   <option value="">— выберите метрику —</option>
-                  {items.map((i) => (
+                  {getItemsForHost(form.config.host_id || '').map((i) => (
                     <option key={i.itemid} value={i.itemid}>{i.name}</option>
                   ))}
                 </select>
@@ -316,7 +454,7 @@ export default function PanelEditor({ panel, serverId: initialServerId, onSave, 
           {form.panel_type === 'image' && (
             <div className="space-y-4 pt-4 border-t border-slate-700">
               <h4 className="text-xl font-semibold text-white">Настройки изображения</h4>
-              
+
               <div>
                 <label className="block text-slate-300 text-lg mb-2">URL изображения</label>
                 <input
@@ -385,7 +523,7 @@ export default function PanelEditor({ panel, serverId: initialServerId, onSave, 
                 onClick={() => setShowMatrixEditor(true)}
                 className="w-full py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-lg transition"
               >
-                 Открыть редактор матрицы
+                🟩 Открыть редактор матрицы
               </button>
             </div>
           )}
@@ -414,7 +552,7 @@ export default function PanelEditor({ panel, serverId: initialServerId, onSave, 
             onClick={onClose}
             className="flex-1 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-xl transition"
           >
-            Отмена
+            ❌ Отмена
           </button>
         </div>
       </div>
