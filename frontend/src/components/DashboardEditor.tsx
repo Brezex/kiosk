@@ -172,14 +172,14 @@ export default function DashboardEditor({ dashboardId, onBack, isAdmin = true }:
   </div>
       
       {/* Панели */}
-      <div className="flex items-center justify-between mb-4 mt-6">
+      <div className="flex items-center justify-between mb-4 mt-4">
   <h3 className="text-2xl font-semibold text-white">
     Панели ({dashboard.panels?.length || 0})
   </h3>
   {canEdit && (
     <button
       onClick={handleAddPanel}
-      className="px-6 py-2 bg-purple-600 hover:bg-blue-700 text-white rounded-lg text-lg transition"
+      className="px-5 py-2 bg-purple-600 hover:bg-blue-700 text-white rounded-lg text-lg transition"
     >
       ➕ Добавить панель
     </button>

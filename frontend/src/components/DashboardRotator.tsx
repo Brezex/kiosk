@@ -23,8 +23,12 @@ function calculateGrid(totalPanels: number): { columns: number; rows: number } {
   if (totalPanels <= 25) return { columns: 5, rows: 5 };
   if (totalPanels <= 30) return { columns: 6, rows: 5 };
   if (totalPanels <= 36) return { columns: 6, rows: 6 };
-  if (totalPanels <= 42) return { columns: 7, rows: 6 };
-  return { columns: 7, rows: 7 };
+  if (totalPanels <= 49) return { columns: 7, rows: 7 };
+  if (totalPanels <= 64) return { columns: 8, rows: 8 };
+  if (totalPanels <= 81) return { columns: 9, rows: 9 };
+  // Для очень большого количества панелей
+  const side = Math.ceil(Math.sqrt(totalPanels));
+  return { columns: side, rows: side };
 }
 
 export default function DashboardRotator({ dashboards, globalInterval }: Props) {
@@ -121,14 +125,14 @@ export default function DashboardRotator({ dashboards, globalInterval }: Props) 
           </div>
         </div>
 
-        <div className="flex-1 p-3 overflow-hidden">
-          <div
-            className="grid gap-3 w-full h-full"
-            style={{
-              gridTemplateColumns: `repeat(${columns}, 1fr)`,
-              gridTemplateRows: `repeat(${rows}, 1fr)`,
-            }}
-          >
+<div className="flex-1 p-2 overflow-hidden min-h-0">
+<div
+  className="grid gap-2 w-full h-full"
+  style={{
+    gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
+    gridTemplateRows: `repeat(${rows}, minmax(0, 1fr))`,
+  }}
+>
             {dashboard.panels?.map((panel: any) => (
               <PanelRenderer 
                 key={panel.id} 
