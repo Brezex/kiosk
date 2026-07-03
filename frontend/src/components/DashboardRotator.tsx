@@ -10,77 +10,147 @@ interface Props {
   globalInterval: number;
 }
 
-function calculateGrid(totalPanels: number): { columns: number; rows: number } {
+function calculateGrid(totalPanels: number, containerWidth: number, containerHeight: number): { columns: number; rows: number } {
   if (totalPanels === 0) return { columns: 1, rows: 1 };
   if (totalPanels === 1) return { columns: 1, rows: 1 };
-  if (totalPanels === 2) return { columns: 2, rows: 1 };
-  if (totalPanels <= 4) return { columns: 2, rows: 2 };
-  if (totalPanels <= 6) return { columns: 3, rows: 2 };
-  if (totalPanels <= 9) return { columns: 3, rows: 3 };
-  if (totalPanels <= 12) return { columns: 4, rows: 3 };
-  if (totalPanels <= 16) return { columns: 4, rows: 4 };
-  if (totalPanels <= 20) return { columns: 5, rows: 4 };
-  if (totalPanels <= 25) return { columns: 5, rows: 5 };
-  if (totalPanels <= 30) return { columns: 6, rows: 5 };
-  if (totalPanels <= 36) return { columns: 6, rows: 6 };
-  if (totalPanels <= 49) return { columns: 7, rows: 7 };
-  if (totalPanels <= 64) return { columns: 8, rows: 8 };
-  if (totalPanels <= 81) return { columns: 9, rows: 9 };
-  // Для очень большого количества панелей
-  const side = Math.ceil(Math.sqrt(totalPanels));
-  return { columns: side, rows: side };
+  
+  const aspectRatio = containerWidth / containerHeight;
+  let cols = Math.ceil(Math.sqrt(totalPanels * aspectRatio));
+  let rows = Math.ceil(totalPanels / cols);
+  
+  while (cols * rows < totalPanels) {
+    rows++;
+  }
+  
+  while (rows > cols * 2 && cols * (rows - 1) >= totalPanels) {
+    cols++;
+    rows = Math.ceil(totalPanels / cols);
+  }
+  
+  return { columns: cols, rows: rows };
+}
+
+// Рассчитываем, сколько ячеек grid должна занимать панель
+function calculatePanelSpan(panel: any, gridColumns: number, gridRows: number): { rowSpan: number; colSpan: number } {
+  if (panel.panel_type !== 'matrix') {
+    return { rowSpan: 1, colSpan: 1 };
+  }
+
+  const matrixRows = panel.config?.rows?.length || 0;
+  const matrixCols = panel.config?.columns?.length || 0;
+
+  // Базовые значения
+  let rowSpan = 1;
+  let colSpan = 1;
+
+  // Увеличиваем rowSpan в зависимости от количества строк в матрице
+  if (matrixRows >= 10) {
+    rowSpan = 3;
+  } else if (matrixRows >= 6) {
+    rowSpan = 2;
+  }
+
+  // Увеличиваем colSpan в зависимости от количества столбцов в матрице
+  if (matrixCols >= 8) {
+    colSpan = 2;
+  } else if (matrixCols >= 5) {
+    colSpan = 1.5; // Округлится до 1 или 2 в зависимости от grid
+  }
+
+  // Ограничиваем максимальными значениями grid
+  rowSpan = Math.min(rowSpan, gridRows);
+  colSpan = Math.min(Math.ceil(colSpan), gridColumns);
+
+  return { rowSpan, colSpan };
 }
 
 export default function DashboardRotator({ dashboards, globalInterval }: Props) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [timeLeft, setTimeLeft] = useState(30);
   const [isTransitioning, setIsTransitioning] = useState(false);
+  const [scale, setScale] = useState(1);
+  const [containerSize, setContainerSize] = useState({ width: 1920, height: 1080 });
   
   const timerRef = useRef<number | null>(null);
   const countdownRef = useRef<number | null>(null);
   const currentIndexRef = useRef(0);
-
+  const containerRef = useRef<HTMLDivElement>(null);
+  const gridRef = useRef<HTMLDivElement>(null);
+  
   const savedInterval = parseInt(localStorage.getItem('rotationInterval') || '30');
   const effectiveInterval = savedInterval;
 
+  const updateScale = useCallback(() => {
+    if (!containerRef.current || !gridRef.current) return;
+    
+    const container = containerRef.current;
+    const grid = gridRef.current;
+    
+    const containerWidth = container.clientWidth;
+    const containerHeight = container.clientHeight;
+    
+    setContainerSize({ width: containerWidth, height: containerHeight });
+    
+    const gridWidth = grid.scrollWidth;
+    const gridHeight = grid.scrollHeight;
+    
+    const scaleX = containerWidth / gridWidth;
+    const scaleY = containerHeight / gridHeight;
+    const newScale = Math.min(scaleX, scaleY);
+    
+    setScale(newScale);
+  }, []);
+
+  useEffect(() => {
+    updateScale();
+    
+    const resizeObserver = new ResizeObserver(() => {
+      updateScale();
+    });
+    
+    if (containerRef.current) {
+      resizeObserver.observe(containerRef.current);
+    }
+    
+    window.addEventListener('resize', updateScale);
+    
+    return () => {
+      resizeObserver.disconnect();
+      window.removeEventListener('resize', updateScale);
+    };
+  }, [updateScale, currentIndex, dashboards]);
+
   const startTimer = useCallback(() => {
-    console.log('🔄 Запуск таймера на', effectiveInterval, 'секунд');
     setTimeLeft(effectiveInterval);
     
     if (timerRef.current) clearTimeout(timerRef.current);
     if (countdownRef.current) clearInterval(countdownRef.current);
-
+    
     countdownRef.current = window.setInterval(() => {
       setTimeLeft((prev) => {
         if (prev <= 1) return effectiveInterval;
         return prev - 1;
       });
     }, 1000);
-
-    const animationDelay = Math.max(1000, effectiveInterval * 1000 - 5000);
     
+    const animationDelay = Math.max(1000, effectiveInterval * 1000 - 5000);
     timerRef.current = window.setTimeout(() => {
-      console.log('⏰ Время анимации!');
       if (countdownRef.current) clearInterval(countdownRef.current);
       setIsTransitioning(true);
     }, animationDelay);
   }, [effectiveInterval]);
 
   const handleTransitionComplete = useCallback(() => {
-    console.log('✅ Анимация завершена, переключаем дашборд');
     const next = (currentIndexRef.current + 1) % dashboards.length;
     currentIndexRef.current = next;
     setCurrentIndex(next);
     setIsTransitioning(false);
-    
     setTimeout(() => startTimer(), 100);
   }, [dashboards.length, startTimer]);
 
   useEffect(() => {
     if (dashboards.length <= 1) return;
-    
     startTimer();
-
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
       if (countdownRef.current) clearInterval(countdownRef.current);
@@ -95,28 +165,32 @@ export default function DashboardRotator({ dashboards, globalInterval }: Props) 
 
   const dashboard = dashboards[currentIndex];
   const totalPanels = dashboard.panels?.length || 0;
-  const { columns, rows } = calculateGrid(totalPanels);
-  
-  // Интервал обновления данных из Zabbix (из дашборда или глобальный)
+  const { columns, rows } = calculateGrid(
+    totalPanels,
+    containerSize.width,
+    containerSize.height
+  );
   const updateInterval = dashboard.update_interval || 30;
 
   return (
     <>
       <div className="h-full flex flex-col" key={dashboard.id}>
-        <div className="p-4 border-b border-slate-700 flex items-center bg-slate-800 flex-shrink-0">
-          <h2 className="text-3xl font-bold text-white text-center flex-1">{dashboard.name}</h2>
-          <div className="flex items-center gap-4 ml-4">
-            <div className="text-slate-400 text-lg">
+        <div className="p-2 border-b border-slate-700 flex items-center bg-slate-800 flex-shrink-0">
+          <h2 className="text-xl font-bold text-white text-center flex-1 truncate px-2">
+            {dashboard.name}
+          </h2>
+          <div className="flex items-center gap-3 ml-2">
+            <div className="text-slate-400 text-sm">
               {currentIndex + 1} / {dashboards.length}
             </div>
-            <div className="text-blue-400 text-lg font-mono">
+            <div className="text-blue-400 text-sm font-mono">
               ⏱️ {timeLeft}с
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-1">
               {dashboards.map((_, i) => (
                 <div
                   key={i}
-                  className={`w-2 h-2 rounded-full transition ${
+                  className={`w-1.5 h-1.5 rounded-full transition ${
                     i === currentIndex ? 'bg-blue-500' : 'bg-slate-600'
                   }`}
                 />
@@ -125,22 +199,36 @@ export default function DashboardRotator({ dashboards, globalInterval }: Props) 
           </div>
         </div>
 
-<div className="flex-1 p-2 overflow-hidden min-h-0">
-<div
-  className="grid gap-2 w-full h-full"
-  style={{
-    gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
-    gridTemplateRows: `repeat(${rows}, minmax(0, 1fr))`,
-  }}
->
-            {dashboard.panels?.map((panel: any) => (
-              <PanelRenderer 
-                key={panel.id} 
-                panel={panel} 
-                dashboard={dashboard}
-                updateInterval={updateInterval}
-              />
-            ))}
+        <div 
+          ref={containerRef}
+          className="flex-1 p-2 overflow-hidden min-h-0 relative"
+        >
+          <div
+            ref={gridRef}
+            className="grid gap-2"
+            style={{
+              gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
+              gridTemplateRows: `repeat(${rows}, minmax(0, 1fr))`,
+              transform: `scale(${scale})`,
+              transformOrigin: 'top left',
+              width: `${100 / scale}%`,
+              height: `${100 / scale}%`,
+            }}
+          >
+            {dashboard.panels?.map((panel: any, index: number) => {
+              const { rowSpan, colSpan } = calculatePanelSpan(panel, columns, rows);
+              
+              return (
+                <PanelRenderer
+                  key={panel.id}
+                  panel={panel}
+                  dashboard={dashboard}
+                  updateInterval={updateInterval}
+                  rowSpan={rowSpan}
+                  colSpan={colSpan}
+                />
+              );
+            })}
           </div>
         </div>
       </div>
@@ -156,39 +244,72 @@ export default function DashboardRotator({ dashboards, globalInterval }: Props) 
   );
 }
 
-function PanelRenderer({ panel, dashboard, updateInterval }: { panel: any; dashboard: any; updateInterval: number }) {
+function PanelRenderer({ 
+  panel, 
+  dashboard, 
+  updateInterval,
+  rowSpan,
+  colSpan 
+}: { 
+  panel: any; 
+  dashboard: any; 
+  updateInterval: number;
+  rowSpan: number;
+  colSpan: number;
+}) {
   return (
-    <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 overflow-hidden flex flex-col min-h-0">
-      <div className="text-lg font-semibold text-white mb-2 flex-shrink-0 truncate">
+    <div 
+      className="bg-slate-800 border border-slate-700 rounded-lg p-2 overflow-hidden flex flex-col min-h-0 min-w-0"
+      style={{
+        contain: 'layout style paint',
+        gridRow: `span ${rowSpan}`,
+        gridColumn: `span ${colSpan}`,
+      }}
+    >
+      <div className="text-sm font-semibold text-white mb-1 flex-shrink-0 truncate">
         {panel.title}
       </div>
-      <div className="flex-1 min-h-0 overflow-hidden">
+      <div 
+        className="flex-1 min-h-0 min-w-0 overflow-hidden"
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+        }}
+      >
         {panel.panel_type === 'chart' && (
-          <ChartPanel 
-            config={panel.config} 
-            serverId={dashboard.zabbix_server_id}
-            updateInterval={updateInterval}
-          />
+          <div className="flex-1 min-h-0 min-w-0 overflow-hidden">
+            <ChartPanel
+              config={panel.config}
+              serverId={dashboard.zabbix_server_id}
+              updateInterval={updateInterval}
+            />
+          </div>
         )}
         {panel.panel_type === 'single_value' && (
-          <SingleValuePanel 
-            config={panel.config} 
-            serverId={dashboard.zabbix_server_id}
-            updateInterval={updateInterval}
-          />
+          <div className="flex-1 min-h-0 min-w-0 overflow-hidden">
+            <SingleValuePanel
+              config={panel.config}
+              serverId={dashboard.zabbix_server_id}
+              updateInterval={updateInterval}
+            />
+          </div>
         )}
         {panel.panel_type === 'text' && (
-          <TextPanel config={panel.config} />
+          <div className="flex-1 min-h-0 min-w-0 overflow-hidden">
+            <TextPanel config={panel.config} />
+          </div>
         )}
         {panel.panel_type === 'matrix' && (
-          <StatusMatrixPanel 
-            config={panel.config} 
-            serverId={dashboard.zabbix_server_id}
-            updateInterval={updateInterval}
-          />
+          <div className="flex-1 min-h-0 min-w-0 overflow-hidden">
+            <StatusMatrixPanel
+              config={panel.config}
+              serverId={dashboard.zabbix_server_id}
+              updateInterval={updateInterval}
+            />
+          </div>
         )}
         {panel.panel_type === 'image' && (
-          <div className="w-full h-full flex items-center justify-center">
+          <div className="flex-1 min-h-0 min-w-0 overflow-hidden flex items-center justify-center">
             <img
               src={panel.config.image_url}
               alt={panel.title}

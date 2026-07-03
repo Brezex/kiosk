@@ -31,11 +31,9 @@ export default function NotificationPanel({ notifications }: Props) {
 return (
   <div className="h-full flex flex-col bg-slate-800">
     <div className="p-6 pl-24 border-b border-slate-700">
-      <div className="flex items-baseline gap-3">
-        <h2 className="text-2xl font-bold text-white">Уведомления</h2>
-        <div className="text-slate-400 text-lg">
-          {notifications.filter(n => n.status === 'active').length} активных
-        </div>
+      <h2 className="text-2xl font-bold text-white">Уведомления</h2>
+      <div className="text-slate-400 text-lg mt-1">
+        {notifications.filter(n => n.status === 'active').length} активных
       </div>
     </div>
       

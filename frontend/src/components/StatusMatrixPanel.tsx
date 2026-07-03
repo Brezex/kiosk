@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { proxyApi } from '../api/client';
 
 interface Props {
@@ -9,16 +9,15 @@ interface Props {
       cells: Array<{ 
         hostId: string; 
         hostName: string;
-        itemId?: string;    // ← ДОБАВИЛИ
-        itemName?: string;  // ← ДОБАВИЛИ
+        itemId?: string;
+        itemName?: string;
       }>;
     }>;
     columns?: Array<{ id: string; name: string }>;
     thresholds?: { warn: number; crit: number };
   };
   serverId?: number;
-    updateInterval?: number;
-
+  updateInterval?: number;
 }
 
 interface CellData {
@@ -29,6 +28,8 @@ interface CellData {
 export default function StatusMatrixPanel({ config, serverId }: Props) {
   const [data, setData] = useState<Record<string, Record<string, CellData>>>({});
   const [loading, setLoading] = useState(false);
+  const [fontSize, setFontSize] = useState(12);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const loadData = async () => {
     if (!serverId || !config.rows?.length || !config.columns?.length) return;
@@ -46,7 +47,6 @@ export default function StatusMatrixPanel({ config, serverId }: Props) {
           const cell = row.cells[colIndex];
           const col = config.columns?.[colIndex];
           
-          // Используем itemId из ячейки (новый формат)
           const itemId = cell.itemId;
           if (!itemId) {
             newData[rowKey][col?.id || `col_${colIndex}`] = { value: null, status: 'unknown' };
@@ -54,12 +54,7 @@ export default function StatusMatrixPanel({ config, serverId }: Props) {
           }
           
           try {
-            const res = await proxyApi.history(
-              serverId,
-              [itemId],
-              '1h',
-              1
-            );
+            const res = await proxyApi.history(serverId, [itemId], '1h', 1);
 
             if (res.data.length > 0) {
               const value = parseFloat(res.data[res.data.length - 1].value);
@@ -85,6 +80,44 @@ export default function StatusMatrixPanel({ config, serverId }: Props) {
     }
   };
 
+  // Динамический расчёт размера шрифта на основе реального размера контейнера
+  useEffect(() => {
+    if (!containerRef.current) return;
+
+    const updateFontSize = () => {
+      if (!containerRef.current) return;
+      
+      const width = containerRef.current.clientWidth;
+      const height = containerRef.current.clientHeight;
+      const rowCount = config.rows?.length || 1;
+      const colCount = (config.columns?.length || 0) + 1; // +1 для колонки "Узел"
+      
+      // Рассчитываем размер на основе минимального измерения
+      const cellWidth = width / colCount;
+      const cellHeight = height / (rowCount + 1); // +1 для заголовков
+      const minDimension = Math.min(cellWidth, cellHeight);
+      
+      // Шрифт = 40% от минимального размера ячейки, но не меньше 6px и не больше 14px
+      const calculatedSize = Math.max(6, Math.min(14, minDimension * 0.4));
+      
+      setFontSize(calculatedSize);
+    };
+
+    // Первоначальный расчёт
+    updateFontSize();
+
+    // Отслеживаем изменение размера контейнера
+    const resizeObserver = new ResizeObserver(() => {
+      updateFontSize();
+    });
+
+    resizeObserver.observe(containerRef.current);
+
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, [config.rows, config.columns]);
+
   useEffect(() => {
     loadData();
     const interval = setInterval(loadData, 60000);
@@ -93,7 +126,7 @@ export default function StatusMatrixPanel({ config, serverId }: Props) {
 
   if (!config.rows?.length || !config.columns?.length) {
     return (
-      <div style={{ color: '#94a3b8', fontSize: '18px', textAlign: 'center', padding: '40px' }}>
+      <div className="w-full h-full flex items-center justify-center text-slate-400" style={{ fontSize: '14px' }}>
         Панель не настроена
       </div>
     );
@@ -106,87 +139,100 @@ export default function StatusMatrixPanel({ config, serverId }: Props) {
     unknown: '#64748b',
   };
 
+  const rowCount = config.rows.length;
+  const colCount = config.columns.length;
+
   return (
-    <div style={{ width: '100%', height: '100%', overflow: 'auto' }}>
+    <div 
+      ref={containerRef}
+      className="w-full h-full flex flex-col min-h-0 min-w-0 overflow-hidden"
+    >
       {loading && Object.keys(data).length === 0 && (
-        <div style={{ color: '#94a3b8', fontSize: '18px', textAlign: 'center', padding: '40px' }}>
+        <div className="flex-1 flex items-center justify-center text-slate-400" style={{ fontSize: `${fontSize}px` }}>
           Загрузка...
         </div>
       )}
       
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
-        <thead>
-          <tr>
-            <th style={{ 
-              padding: '10px', 
-              textAlign: 'left', 
-              borderBottom: '2px solid #334155',
-              color: '#f1f5f9',
-              fontWeight: 'bold',
-            }}>
-              Узел
-            </th>
-            {config.columns.map((col) => (
-              <th key={col.id} style={{ 
-                padding: '10px', 
-                textAlign: 'center', 
-                borderBottom: '2px solid #334155',
-                color: '#f1f5f9',
-                fontWeight: 'bold',
-              }}>
-                {col.name}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {config.rows.map((row, rowIndex) => {
-            const rowKey = `row_${rowIndex}`;
-            return (
-              <tr key={row.id || rowIndex} style={{ borderBottom: '1px solid #1e293b' }}>
-                <td style={{ 
-                  padding: '10px', 
-                  color: '#f1f5f9',
-                  fontWeight: '500',
-                }}>
-                  {row.name}
-                </td>
-                {row.cells.map((cell, cellIndex) => {
-                  const col = config.columns?.[cellIndex];
-                  const colKey = col?.id || `col_${cellIndex}`;
-                  const cellData = data[rowKey]?.[colKey];
-                  const color = cellData ? statusColors[cellData.status] : statusColors.unknown;
-                  
-                  return (
-                    <td key={cellIndex} style={{ padding: '10px', textAlign: 'center' }}>
-                      <div
-                        title={`${col?.name || ''}: ${cellData?.value ?? 'нет данных'}`}
-                        style={{
-                          width: '36px',
-                          height: '36px',
-                          backgroundColor: color,
-                          borderRadius: '6px',
-                          margin: '0 auto',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          color: 'white',
-                          fontSize: '12px',
-                          fontWeight: 'bold',
-                        }}
-                      >
-                        {cellData?.value !== null && cellData?.value !== undefined 
-                          ? cellData.value.toFixed(0) 
-                          : '?'}
-                      </div>
-                    </td>
-                  );
-                })}
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+      <div 
+        className="flex-1 min-h-0 min-w-0 grid gap-0.5"
+        style={{
+          gridTemplateColumns: `minmax(0, 1fr) repeat(${colCount}, minmax(0, 1fr))`,
+          gridTemplateRows: `auto repeat(${rowCount}, minmax(0, 1fr))`,
+        }}
+      >
+        {/* Заголовки */}
+        <div 
+          className="bg-slate-700 flex items-center justify-center text-white font-bold border border-slate-600 min-h-0 overflow-hidden"
+          style={{ 
+            padding: '2px',
+            fontSize: `${fontSize}px`,
+          }}
+        >
+          <span className="truncate">Узел</span>
+        </div>
+        {config.columns.map((col) => (
+          <div 
+            key={col.id} 
+            className="bg-slate-700 flex items-center justify-center text-white font-bold border border-slate-600 min-h-0 overflow-hidden"
+            style={{ 
+              padding: '2px',
+              fontSize: `${fontSize}px`,
+            }}
+          >
+            <span className="truncate text-center">{col.name}</span>
+          </div>
+        ))}
+
+        {/* Строки */}
+        {config.rows.map((row, rowIndex) => {
+          const rowKey = `row_${rowIndex}`;
+          return (
+            <>
+              <div 
+                key={`row-name-${row.id || rowIndex}`}
+                className="bg-slate-800 flex items-center text-white font-medium border border-slate-700 min-h-0 overflow-hidden"
+                style={{ 
+                  padding: '2px',
+                  fontSize: `${fontSize}px`,
+                }}
+              >
+                <span className="truncate">{row.name}</span>
+              </div>
+              
+              {row.cells.map((cell, cellIndex) => {
+                const col = config.columns?.[cellIndex];
+                const colKey = col?.id || `col_${cellIndex}`;
+                const cellData = data[rowKey]?.[colKey];
+                const color = cellData ? statusColors[cellData.status] : statusColors.unknown;
+                
+                return (
+                  <div
+                    key={`cell-${rowIndex}-${cellIndex}`}
+                    className="flex items-center justify-center border border-slate-700 min-h-0 min-w-0"
+                    style={{ padding: '1px' }}
+                  >
+                    <div
+                      title={`${col?.name || ''}: ${cellData?.value ?? 'нет данных'}`}
+                      className="w-full h-full flex items-center justify-center rounded text-white font-bold"
+                      style={{
+                        backgroundColor: color,
+                        fontSize: `${fontSize}px`,
+                        aspectRatio: '1',
+                        maxWidth: '100%',
+                        maxHeight: '100%',
+                      }}
+                    >
+                      {cellData?.value !== null && cellData?.value !== undefined 
+                        ? cellData.value.toFixed(0) 
+                        : '?'}
+                    </div>
+                  </div>
+                );
+              })}
+            </>
+          );
+        })}
+      </div>
     </div>
   );
 }
