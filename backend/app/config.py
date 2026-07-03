@@ -1,7 +1,6 @@
 from pathlib import Path
 from typing import List
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import field_validator
 
 
 class Settings(BaseSettings):
@@ -26,15 +25,24 @@ class Settings(BaseSettings):
     ZABBIX_RETRY_DELAY: int = 5
     ZABBIX_CACHE_TTL: int = 300
     
-    # CORS - принимаем как строку, парсим в список
+    # CORS - принимаем как строку через запятую
     CORS_ORIGINS: str = "http://localhost,http://localhost:5173,http://localhost:8000"
     
     @property
     def cors_origins_list(self) -> List[str]:
-        """Парсинг CORS_ORIGINS в список."""
-        if isinstance(self.CORS_ORIGINS, list):
-            return self.CORS_ORIGINS
-        return [origin.strip() for origin in self.CORS_ORIGINS.split(",") if origin.strip()]
+        """Парсинг CORS_ORIGINS в список с обработкой разных форматов."""
+        origins_str = self.CORS_ORIGINS.strip()
+        
+        # Если это JSON-массив (из .env)
+        if origins_str.startswith("[") and origins_str.endswith("]"):
+            origins_str = origins_str[1:-1]
+        
+        # Разбиваем по запятой и очищаем от кавычек и пробелов
+        return [
+            origin.strip().strip('"').strip("'")
+            for origin in origins_str.split(",")
+            if origin.strip()
+        ]
     
     model_config = SettingsConfigDict(
         env_file=".env",

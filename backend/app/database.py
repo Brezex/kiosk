@@ -64,5 +64,7 @@ async def get_async_db():
             await session.close()
 
 def init_db():
-    from app.models import User, Dashboard, Panel, ZabbixServer, ScheduledNotification
+    from app.models import User, Dashboard, Panel, ZabbixServer, ScheduledNotification, ChatMessage
     Base.metadata.create_all(bind=engine)
+
+    

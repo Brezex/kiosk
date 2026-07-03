@@ -4,6 +4,7 @@ import { authApi, dashboardsApi, zabbixServersApi } from '../api/client';
 interface User {
   id: number;
   username: string;
+  full_name?: string;
   role: string;
   must_change_password: boolean;
 }
@@ -54,6 +55,7 @@ export const useStore = create<AppState>((set, get) => ({
         user: {
           id: res.data.id,
           username: res.data.username,
+          full_name: res.data.full_name || res.data.username,
           role: res.data.role || 'viewer',
           must_change_password: res.data.must_change_password
         }, 

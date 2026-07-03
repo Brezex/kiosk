@@ -8,7 +8,7 @@ import NotificationsPage from './NotificationsPage';
 import UsersPage from './UsersPage';
 import StatisticsPage from './StatisticsPage';
 import NodesPage from './NodesPage';
-//import ChatPage from './ChatPage';
+import ChatPage from './ChatPage';
 
 type Tab = 'dashboards' | 'nodes' | 'servers' | 'notifications' | 'users' | 'statistics' | 'chat';
 
@@ -83,14 +83,14 @@ export default function AdminPage() {
             🖥️ Узлы
           </button>
 
-          {/*<button
+          <button
             onClick={() => setTab('chat')}
             className={`w-full text-left px-4 py-3 rounded-lg text-lg transition ${
               tab === 'chat' ? 'bg-purple-600 text-white' : 'text-slate-300 hover:bg-slate-700'
             }`}
           >
             💬 Чаты
-          </button>*/}
+          </button>
 
           {/*{
             <button
@@ -188,7 +188,7 @@ export default function AdminPage() {
 
         {isAdmin && tab === 'users' && <UsersPage />}
 
-        {/*{tab === 'chat' && <ChatPage />}*/}
+        {tab === 'chat' && <ChatPage />}
       </main>
     </div>
   );

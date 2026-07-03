@@ -10,6 +10,7 @@ class User(Base):
     
     id = Column(Integer, primary_key=True, autoincrement=True)
     username = Column(String, unique=True, nullable=False)
+    full_name = Column(String, nullable=True)  # ← ДОБАВЛЕНО
     hashed_password = Column(String, nullable=False)
     role = Column(String, default="viewer")
     must_change_password = Column(Boolean, default=True)

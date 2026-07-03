@@ -1,6 +1,7 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from typing import Optional, List, Dict, Any
 from datetime import datetime
+import json
 
 
 # ============ Auth ============
@@ -17,17 +18,6 @@ class LoginResponse(BaseModel):
 class ChangePasswordRequest(BaseModel):
     old_password: str
     new_password: str
-
-
-class UserResponse(BaseModel):
-    id: int
-    username: str
-    role: str
-    must_change_password: bool
-    created_at: datetime 
-
-    class Config:
-        from_attributes = True
 
 
 # ============ Zabbix Servers ============
@@ -110,7 +100,7 @@ class DashboardResponse(BaseModel):
     id: int
     name: str
     zabbix_server_id: Optional[int]
-    user_id: Optional[int] = None  # ← ДОБАВЛЕНО
+    user_id: Optional[int] = None
     in_rotation: bool
     sort_order: int
     rotation_interval: Optional[int]
@@ -139,9 +129,6 @@ class PanelUpdate(BaseModel):
     size: Optional[int] = None
     config: Optional[Dict[str, Any]] = None
 
-
-from pydantic import field_validator
-import json
 
 class PanelResponse(BaseModel):
     id: int
@@ -228,10 +215,11 @@ class ScheduledNotificationResponse(BaseModel):
     class Config:
         from_attributes = True
 
-        from typing import Optional
 
+# ============ Users ============
 class UserCreate(BaseModel):
     username: str
+    full_name: Optional[str] = None
     password: str
     role: str = "viewer"
     must_change_password: bool = True
@@ -239,6 +227,7 @@ class UserCreate(BaseModel):
 
 class UserUpdate(BaseModel):
     username: Optional[str] = None
+    full_name: Optional[str] = None
     password: Optional[str] = None
     role: Optional[str] = None
     must_change_password: Optional[bool] = None
@@ -247,34 +236,7 @@ class UserUpdate(BaseModel):
 class UserResponse(BaseModel):
     id: int
     username: str
-    role: str
-    must_change_password: bool
-    created_at: datetime  # ← datetime!
-
-    class Config:
-        from_attributes = True
-
-        from datetime import datetime
-from typing import Optional
-
-
-class UserCreate(BaseModel):
-    username: str
-    password: str
-    role: str = "viewer"
-    must_change_password: bool = True
-
-
-class UserUpdate(BaseModel):
-    username: Optional[str] = None
-    password: Optional[str] = None
-    role: Optional[str] = None
-    must_change_password: Optional[bool] = None
-
-
-class UserResponse(BaseModel):
-    id: int
-    username: str
+    full_name: Optional[str] = None
     role: str
     must_change_password: bool
     created_at: datetime

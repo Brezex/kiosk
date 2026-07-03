@@ -35,6 +35,7 @@ async def create_user(
     
     user = User(
         username=data.username,
+        full_name=data.full_name or data.username,  # ← ДОБАВЛЕНО: если full_name не указан, используем username
         hashed_password=hash_password(data.password),
         role=data.role,
         must_change_password=data.must_change_password

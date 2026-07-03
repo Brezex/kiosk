@@ -4,6 +4,7 @@ import { usersApi } from '../api/client';
 interface User {
   id: number;
   username: string;
+  full_name?: string;
   role: string;
   must_change_password: boolean;
   created_at: string;
@@ -15,6 +16,7 @@ export default function UsersPage() {
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [formData, setFormData] = useState({
     username: '',
+    full_name: '',
     password: '',
     role: 'viewer',
     must_change_password: true,
@@ -33,6 +35,16 @@ export default function UsersPage() {
     }
   };
 
+  const resetForm = () => {
+    setFormData({
+      username: '',
+      full_name: '',
+      password: '',
+      role: 'viewer',
+      must_change_password: true,
+    });
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -43,7 +55,7 @@ export default function UsersPage() {
       }
       setShowForm(false);
       setEditingUser(null);
-      setFormData({ username: '', password: '', role: 'viewer', must_change_password: true });
+      resetForm();
       loadUsers();
     } catch (e) {
       alert('Ошибка сохранения');
@@ -54,6 +66,7 @@ export default function UsersPage() {
     setEditingUser(user);
     setFormData({
       username: user.username,
+      full_name: user.full_name || '',
       password: '',
       role: user.role,
       must_change_password: user.must_change_password,
@@ -81,19 +94,21 @@ export default function UsersPage() {
     }
   };
 
+  const openCreateForm = () => {
+    setEditingUser(null);
+    resetForm();
+    setShowForm(true);
+  };
+
   return (
     <div className="p-8">
       <div className="flex items-center justify-between mb-8">
         <h2 className="text-4xl font-bold text-white">Пользователи</h2>
         <button
-          onClick={() => {
-            setEditingUser(null);
-            setFormData({ username: '', password: '', role: 'viewer', must_change_password: true });
-            setShowForm(true);
-          }}
+          onClick={openCreateForm}
           className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-lg transition"
         >
-           Добавить пользователя
+          ➕ Добавить пользователя
         </button>
       </div>
 
@@ -103,6 +118,7 @@ export default function UsersPage() {
             <tr>
               <th className="px-6 py-4 text-left text-slate-300 text-lg font-semibold">ID</th>
               <th className="px-6 py-4 text-left text-slate-300 text-lg font-semibold">Логин</th>
+              <th className="px-6 py-4 text-left text-slate-300 text-lg font-semibold">Имя</th>
               <th className="px-6 py-4 text-left text-slate-300 text-lg font-semibold">Роль</th>
               <th className="px-6 py-4 text-left text-slate-300 text-lg font-semibold">Смена пароля</th>
               <th className="px-6 py-4 text-left text-slate-300 text-lg font-semibold">Действия</th>
@@ -113,6 +129,9 @@ export default function UsersPage() {
               <tr key={user.id} className="hover:bg-slate-700/50 transition">
                 <td className="px-6 py-4 text-white text-lg">{user.id}</td>
                 <td className="px-6 py-4 text-white text-lg font-semibold">{user.username}</td>
+                <td className="px-6 py-4 text-white text-lg">
+                  {user.full_name || <span className="text-slate-500">—</span>}
+                </td>
                 <td className="px-6 py-4">
                   <span className={`px-3 py-1 rounded text-sm ${
                     user.role === 'admin' 
@@ -134,6 +153,7 @@ export default function UsersPage() {
                     <button
                       onClick={() => handleEdit(user)}
                       className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-base transition"
+                      title="Редактировать"
                     >
                       ✏️
                     </button>
@@ -147,6 +167,7 @@ export default function UsersPage() {
                     <button
                       onClick={() => handleDelete(user.id, user.username)}
                       className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-base transition"
+                      title="Удалить"
                     >
                       🗑️
                     </button>
@@ -180,6 +201,22 @@ export default function UsersPage() {
 
               <div>
                 <label className="block text-slate-300 text-lg mb-2">
+                  Отображаемое имя <span className="text-slate-500 text-sm"></span>
+                </label>
+                <input
+                  type="text"
+                  value={formData.full_name}
+                  onChange={(e) => setFormData({...formData, full_name: e.target.value})}
+                  placeholder="Иван Иванов"
+                  className="w-full px-4 py-3 bg-slate-900 border border-slate-600 rounded-lg text-white text-lg"
+                />
+                <p className="text-slate-500 text-sm mt-1">
+                  Если не заполнено, будет использоваться логин
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-slate-300 text-lg mb-2">
                   Пароль {editingUser && '(оставьте пустым, чтобы не менять)'}
                 </label>
                 <input
@@ -199,7 +236,7 @@ export default function UsersPage() {
                   className="w-full px-4 py-3 bg-slate-900 border border-slate-600 rounded-lg text-white text-lg"
                 >
                   <option value="viewer">👁️ Viewer (только просмотр)</option>
-                  <option value="admin"> Admin (полный доступ)</option>
+                  <option value="admin">👑 Admin (полный доступ)</option>
                 </select>
               </div>
 
@@ -228,6 +265,7 @@ export default function UsersPage() {
                   onClick={() => {
                     setShowForm(false);
                     setEditingUser(null);
+                    resetForm();
                   }}
                   className="flex-1 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-lg transition"
                 >

@@ -103,4 +103,5 @@ export const chatApi = {
   sendMessage: (data: { receiver_id: number; message: string }) => 
     api.post('/chat/messages', data),
   getUnreadCount: () => api.get('/chat/unread'),
+  getUnreadByUsers: () => api.get('/chat/unread-by-users'),
 };
