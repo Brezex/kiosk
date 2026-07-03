@@ -13,7 +13,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 from app.database import init_db, SessionLocal
 from app.config import settings
-from app.routers import auth, dashboards, panels, proxy, zabbix_servers, notifications, users, statistics, chat
+from app.routers import auth, dashboards, panels, proxy, zabbix_servers, notifications, users, statistics, chat, profile
+
 
 # Настройка логирования
 logging.basicConfig(
@@ -85,6 +86,7 @@ app.include_router(notifications.router)
 app.include_router(users.router)
 app.include_router(statistics.router)
 app.include_router(chat.router)
+app.include_router(profile.router)
 
 
 # ============ Kiosk Public Routes ============

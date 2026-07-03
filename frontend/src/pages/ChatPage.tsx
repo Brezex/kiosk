@@ -6,6 +6,7 @@ import { useStore } from '../store/useStore';
 interface User {
   id: number;
   username: string;
+  avatar?: string;
   full_name: string;
 }
 
@@ -22,6 +23,7 @@ interface Toast {
   id: number;
   userName: string;
   message: string;
+  avatar?: string;
 }
 
 export default function ChatPage() {
@@ -39,10 +41,10 @@ export default function ChatPage() {
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const pollIntervalRef = useRef<number | null>(null);
-  const prevMessagesRef = useRef<Record<number, number>>({}); // {userId: lastMessageId}
+  const prevMessagesRef = useRef<Record<number, number>>({});
   const toastIdRef = useRef(0);
 
-  // Шаг 1: Проверка авторизации
+  // Проверка авторизации
   useEffect(() => {
     const doCheckAuth = async () => {
       await checkAuth();
@@ -51,14 +53,14 @@ export default function ChatPage() {
     doCheckAuth();
   }, []);
 
-  // Шаг 2: Редирект если не авторизован
+  // Редирект если не авторизован
   useEffect(() => {
     if (authChecked && !isAuthenticated) {
       navigate('/login');
     }
   }, [authChecked, isAuthenticated, navigate]);
 
-  // Шаг 3: Загрузка пользователей (один раз)
+  // Загрузка пользователей
   useEffect(() => {
     if (!authChecked || !isAuthenticated) return;
     loadUsers();
@@ -66,7 +68,7 @@ export default function ChatPage() {
     loadUnreadByUsers();
   }, [authChecked, isAuthenticated]);
 
-  // Шаг 4: Polling для сообщений и непрочитанных
+  // Polling для сообщений
   useEffect(() => {
     if (!authChecked || !isAuthenticated) return;
     
@@ -74,7 +76,6 @@ export default function ChatPage() {
       await loadUnreadCount();
       await loadUnreadByUsers();
       
-      // Обновляем сообщения для всех пользователей, чтобы ловить новые
       for (const u of users) {
         await loadMessagesSilent(u.id);
       }
@@ -87,14 +88,14 @@ export default function ChatPage() {
     };
   }, [authChecked, isAuthenticated, users]);
 
-  // Шаг 5: Автопрокрутка
+  // Автопрокрутка
   useEffect(() => {
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
   }, [messages]);
 
-  // Шаг 6: Автоудаление toast через 5 секунд
+  // Автоудаление toast
   useEffect(() => {
     if (toasts.length === 0) return;
     const timer = setTimeout(() => {
@@ -117,7 +118,6 @@ export default function ChatPage() {
       const res = await chatApi.getMessages(userId);
       setMessages(res.data);
       
-      // Обновляем lastMessageId для этого пользователя
       if (res.data.length > 0) {
         const lastMsg = res.data[res.data.length - 1];
         prevMessagesRef.current[userId] = lastMsg.id;
@@ -127,39 +127,32 @@ export default function ChatPage() {
     }
   };
 
-  // Тихая загрузка для polling — проверяет новые сообщения и показывает toast
   const loadMessagesSilent = async (userId: number) => {
     try {
       const res = await chatApi.getMessages(userId);
       const lastKnownId = prevMessagesRef.current[userId] || 0;
       
-      // Находим новые сообщения от этого пользователя
       const newMessages = res.data.filter(
         (m: Message) => m.id > lastKnownId && m.sender_id === userId
       );
       
       if (newMessages.length > 0) {
-        // Находим имя отправителя
         const sender = users.find(u => u.id === userId);
         const senderName = sender?.full_name || sender?.username || 'Пользователь';
-        
-        // Показываем toast для последнего нового сообщения
         const lastNew = newMessages[newMessages.length - 1];
-        showToast(senderName, lastNew.message);
+        showToast(senderName, lastNew.message, sender?.avatar);
       }
       
-      // Обновляем lastMessageId
       if (res.data.length > 0) {
         const lastMsg = res.data[res.data.length - 1];
         prevMessagesRef.current[userId] = lastMsg.id;
       }
       
-      // Если это текущий выбранный пользователь — обновляем отображение
       if (selectedUser?.id === userId) {
         setMessages(res.data);
       }
     } catch (e: any) {
-      // Тихо игнорируем ошибки polling
+      // Тихо игнорируем
     }
   };
 
@@ -181,9 +174,9 @@ export default function ChatPage() {
     }
   };
 
-  const showToast = (userName: string, message: string) => {
+  const showToast = (userName: string, message: string, avatar?: string) => {
     const id = ++toastIdRef.current;
-    setToasts(prev => [...prev, { id, userName, message }]);
+    setToasts(prev => [...prev, { id, userName, message, avatar }]);
   };
 
   const handleSendMessage = async (e: React.FormEvent) => {
@@ -205,6 +198,28 @@ export default function ChatPage() {
   const formatTime = (dateStr: string) => {
     const date = new Date(dateStr);
     return date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+  };
+
+  // Компонент аватара
+  const Avatar = ({ user, size = 'md' }: { user: User | Toast; size?: 'sm' | 'md' | 'lg' }) => {
+    const sizeClasses = {
+      sm: 'w-10 h-10 text-lg',
+      md: 'w-12 h-12 text-xl',
+      lg: 'w-16 h-16 text-2xl'
+    };
+    
+    const displayName = 'full_name' in user ? user.full_name : user.userName;
+    const avatar = user.avatar;
+    
+    return (
+      <div className={`${sizeClasses[size]} rounded-full bg-blue-600 flex items-center justify-center text-white font-bold overflow-hidden flex-shrink-0`}>
+        {avatar ? (
+          <img src={`/static/avatars/${avatar}`} alt="" className="w-full h-full object-cover" />
+        ) : (
+          displayName.charAt(0).toUpperCase()
+        )}
+      </div>
+    );
   };
 
   if (!authChecked) {
@@ -229,9 +244,7 @@ export default function ChatPage() {
             className="bg-slate-800 border border-blue-500 rounded-lg shadow-lg p-4 animate-slide-in"
           >
             <div className="flex items-start gap-3">
-              <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold flex-shrink-0">
-                {toast.userName.charAt(0).toUpperCase()}
-              </div>
+              <Avatar user={toast} size="sm" />
               <div className="flex-1 min-w-0">
                 <div className="text-white font-semibold text-sm">
                   {toast.userName}
@@ -277,10 +290,7 @@ export default function ChatPage() {
                 >
                   <div className="flex items-center gap-3">
                     <div className="relative">
-                      <div className="w-12 h-12 rounded-full bg-blue-600 flex items-center justify-center text-white text-xl font-bold">
-                        {u.full_name.charAt(0).toUpperCase()}
-                      </div>
-                      {/* Красный кружочек непрочитанных */}
+                      <Avatar user={u} size="md" />
                       {unread > 0 && (
                         <div className="absolute -top-1 -right-1 w-6 h-6 bg-red-600 rounded-full flex items-center justify-center text-white text-xs font-bold border-2 border-slate-800">
                           {unread > 9 ? '9+' : unread}
@@ -314,9 +324,7 @@ export default function ChatPage() {
             {/* Заголовок чата */}
             <div className="p-6 border-b border-slate-700 bg-slate-800">
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-full bg-blue-600 flex items-center justify-center text-white text-xl font-bold">
-                  {selectedUser.full_name.charAt(0).toUpperCase()}
-                </div>
+                <Avatar user={selectedUser} size="md" />
                 <div>
                   <div className="text-white text-xl font-semibold">
                     {selectedUser.full_name}

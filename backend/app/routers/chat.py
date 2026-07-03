@@ -18,6 +18,7 @@ class UserOut(BaseModel):
     id: int
     username: str
     full_name: str
+    avatar: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -57,7 +58,9 @@ def get_users(
         UserOut(
             id=u.id,
             username=u.username,
-            full_name=u.full_name or u.username,  # ← ИЗМЕНЕНО: используем full_name
+            full_name=u.full_name or u.username,  #используем full_name
+            avatar=u.avatar,  # ← ДОБАВЛЕНО
+            
         )
         for u in users
     ]

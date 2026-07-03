@@ -237,9 +237,14 @@ class UserResponse(BaseModel):
     id: int
     username: str
     full_name: Optional[str] = None
+    avatar: Optional[str] = None
     role: str
     must_change_password: bool
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+class Config:
+    from_attributes = True
+        
+class ProfileUpdate(BaseModel):
+    full_name: Optional[str] = None
+    avatar: Optional[str] = None

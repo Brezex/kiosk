@@ -105,3 +105,16 @@ export const chatApi = {
   getUnreadCount: () => api.get('/chat/unread'),
   getUnreadByUsers: () => api.get('/chat/unread-by-users'),
 };
+
+// ============ Profile ============
+export const profileApi = {
+  get: () => api.get('/profile/me'),
+  update: (data: { full_name?: string; avatar?: string }) => api.put('/profile/me', data),
+  uploadAvatar: (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return api.post('/profile/avatar', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
+};
