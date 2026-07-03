@@ -14,6 +14,35 @@ interface Notification {
   is_sent: boolean;
 }
 
+// Конвертация UTC ISO строки в локальное время для datetime-local input
+function utcToLocalDatetime(utcString: string): string {
+  if (!utcString) return '';
+  const date = new Date(utcString);
+  const offset = date.getTimezoneOffset() * 60000;
+  return new Date(date.getTime() - offset).toISOString().slice(0, 16);
+}
+
+// Форматирование даты в локальном часовом поясе
+function formatLocalDate(dateStr: string): string {
+  if (!dateStr) return '';
+  const date = new Date(dateStr);
+  return date.toLocaleString('ru-RU', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+// Получение локальной даты (YYYY-MM-DD) из Date объекта
+function getLocalDateString(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 export default function NotificationsPage() {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -43,6 +72,7 @@ export default function NotificationsPage() {
     try {
       await notificationsApi.create({
         ...formData,
+        // Конвертируем локальное время в UTC ISO строку
         scheduled_at: new Date(formData.scheduled_at).toISOString(),
       });
       setShowForm(false);
@@ -63,13 +93,19 @@ export default function NotificationsPage() {
     }
   };
 
-  const formatDate = (date: Date) => {
-    return date.toLocaleDateString('ru-RU');
+  // Используем локальную дату для фильтрации
+  const getNotificationsForDate = (date: Date) => {
+    const localDateStr = getLocalDateString(date);
+    return notifications.filter(n => {
+      // Получаем локальную дату из scheduled_at
+      const notifDate = new Date(n.scheduled_at);
+      const notifLocalDate = getLocalDateString(notifDate);
+      return notifLocalDate === localDateStr;
+    });
   };
 
-  const getNotificationsForDate = (date: Date) => {
-    const dateStr = date.toISOString().split('T')[0];
-    return notifications.filter(n => n.scheduled_at.startsWith(dateStr));
+  const formatDate = (date: Date) => {
+    return date.toLocaleDateString('ru-RU');
   };
 
   const dayNotifications = getNotificationsForDate(selectedDate);
@@ -95,10 +131,10 @@ export default function NotificationsPage() {
             }}
             value={selectedDate}
             locale="ru-RU"
-tileClassName={({ date }) => {
-  const hasNotifications = getNotificationsForDate(date).length > 0;
-  return hasNotifications ? 'has-notifications' : '';
-}}
+            tileClassName={({ date }) => {
+              const hasNotifications = getNotificationsForDate(date).length > 0;
+              return hasNotifications ? 'has-notifications' : '';
+            }}
           />
         </div>
 
@@ -130,6 +166,10 @@ tileClassName={({ date }) => {
                       </div>
                       <h4 className="text-white font-semibold mb-1">{n.title}</h4>
                       <p className="text-slate-300 text-sm">{n.message}</p>
+                      {/* Показываем время в локальном часовом поясе */}
+                      <div className="text-slate-400 text-xs mt-2">
+                        🕐 {formatLocalDate(n.scheduled_at)}
+                      </div>
                     </div>
                     <button
                       onClick={() => handleDelete(n.id)}
@@ -160,7 +200,7 @@ tileClassName={({ date }) => {
                   className="w-full px-4 py-3 bg-slate-900 border border-slate-600 rounded-lg text-white text-lg"
                 >
                   <option value="notification">📢 Уведомление</option>
-                  <option value="reminder">🔔 Напоминание</option>
+                  <option value="reminder"> Напоминание</option>
                 </select>
               </div>
 
@@ -194,6 +234,9 @@ tileClassName={({ date }) => {
                   className="w-full px-4 py-3 bg-slate-900 border border-slate-600 rounded-lg text-white text-lg"
                   required
                 />
+                <p className="text-slate-400 text-sm mt-1">
+                  Время указывается в вашем локальном часовом поясе
+                </p>
               </div>
 
               <div className="flex gap-3">

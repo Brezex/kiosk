@@ -15,7 +15,7 @@ class User(Base):
     must_change_password = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     
-    dashboards = relationship("Dashboard", back_populates="user")  # ← ДОБАВЛЕНО
+    dashboards = relationship("Dashboard", back_populates="user")
 
 
 class ZabbixServer(Base):
@@ -38,7 +38,7 @@ class Dashboard(Base):
     name = Column(String, nullable=False)
     description = Column(String, nullable=True)
     zabbix_server_id = Column(Integer, ForeignKey("zabbix_servers.id"), nullable=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)  # ← ДОБАВЛЕНО
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     in_rotation = Column(Boolean, default=True)
     sort_order = Column(Integer, default=0)
     rotation_interval = Column(Integer, nullable=True)
@@ -47,7 +47,7 @@ class Dashboard(Base):
     
     panels = relationship("Panel", back_populates="dashboard", cascade="all, delete-orphan")
     zabbix_server = relationship("ZabbixServer", back_populates="dashboards")
-    user = relationship("User", back_populates="dashboards")  # ← ДОБАВЛЕНО
+    user = relationship("User", back_populates="dashboards")
 
 
 class Panel(Base):
@@ -76,3 +76,17 @@ class ScheduledNotification(Base):
     is_active = Column(Boolean, default=True)
     is_sent = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class ChatMessage(Base):
+    __tablename__ = "chat_messages"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    sender_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    receiver_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    message = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    is_read = Column(Boolean, default=False)
+    
+    sender = relationship("User", foreign_keys=[sender_id], backref="sent_messages")
+    receiver = relationship("User", foreign_keys=[receiver_id], backref="received_messages")

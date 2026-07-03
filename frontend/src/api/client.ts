@@ -96,3 +96,11 @@ export const usersApi = {
   delete: (id: number) => api.delete(`/users/${id}`),
   resetPassword: (id: number) => api.post(`/users/${id}/reset-password`),
 };
+
+export const chatApi = {
+  getUsers: () => api.get('/chat/users'),
+  getMessages: (userId: number) => api.get(`/chat/messages/${userId}`),
+  sendMessage: (data: { receiver_id: number; message: string }) => 
+    api.post('/chat/messages', data),
+  getUnreadCount: () => api.get('/chat/unread'),
+};

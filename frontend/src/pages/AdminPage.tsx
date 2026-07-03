@@ -8,8 +8,9 @@ import NotificationsPage from './NotificationsPage';
 import UsersPage from './UsersPage';
 import StatisticsPage from './StatisticsPage';
 import NodesPage from './NodesPage';
+//import ChatPage from './ChatPage';
 
-type Tab = 'dashboards' | 'nodes' | 'servers' | 'notifications' | 'users' | 'statistics';
+type Tab = 'dashboards' | 'nodes' | 'servers' | 'notifications' | 'users' | 'statistics' | 'chat';
 
 // Единый стиль для кнопок
 const btnOutline = "px-6 py-3 border-2 border-purple-600 text-purple-300 hover:bg-purple-600 hover:text-white rounded-lg text-lg transition-all duration-200 font-medium";
@@ -81,6 +82,15 @@ export default function AdminPage() {
           >
             🖥️ Узлы
           </button>
+
+          {/*<button
+            onClick={() => setTab('chat')}
+            className={`w-full text-left px-4 py-3 rounded-lg text-lg transition ${
+              tab === 'chat' ? 'bg-purple-600 text-white' : 'text-slate-300 hover:bg-slate-700'
+            }`}
+          >
+            💬 Чаты
+          </button>*/}
 
           {/*{
             <button
@@ -177,6 +187,8 @@ export default function AdminPage() {
         {isAdmin && tab === 'notifications' && <NotificationsPage />}
 
         {isAdmin && tab === 'users' && <UsersPage />}
+
+        {/*{tab === 'chat' && <ChatPage />}*/}
       </main>
     </div>
   );
