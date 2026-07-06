@@ -4,6 +4,7 @@ import SingleValuePanel from './SingleValuePanel';
 import TextPanel from './TextPanel';
 import StatusMatrixPanel from './StatusMatrixPanel';
 import TransitionAnimation from './TransitionAnimation';
+import TablePanel from './TablePanel';
 
 interface Props {
   dashboards: any[];
@@ -113,7 +114,9 @@ export default function DashboardRotator({ dashboards, globalInterval }: Props) 
     }
     
     window.addEventListener('resize', updateScale);
-    
+    console.log('[DashboardRotator] dashboard=', dashboard);
+  console.log('[DashboardRotator] dashboard.zabbix_server_id=', dashboard.zabbix_server_id);
+
     return () => {
       resizeObserver.disconnect();
       window.removeEventListener('resize', updateScale);
@@ -244,87 +247,82 @@ export default function DashboardRotator({ dashboards, globalInterval }: Props) 
   );
 }
 
-function PanelRenderer({ 
-  panel, 
-  dashboard, 
+function PanelRenderer({
+  panel,
+  dashboard,
   updateInterval,
   rowSpan,
-  colSpan 
-}: { 
-  panel: any; 
-  dashboard: any; 
+  colSpan
+}: {
+  panel: any;
+  dashboard: any;
   updateInterval: number;
   rowSpan: number;
   colSpan: number;
 }) {
   return (
-    <div 
-      className="bg-slate-800 border border-slate-700 rounded-lg p-2 overflow-hidden flex flex-col min-h-0 min-w-0"
+    <div
+      className="bg-slate-900 border border-slate-700 rounded-xl overflow-hidden flex flex-col"
       style={{
         contain: 'layout style paint',
         gridRow: `span ${rowSpan}`,
         gridColumn: `span ${colSpan}`,
       }}
     >
-      <div className="text-sm font-semibold text-white mb-1 flex-shrink-0 truncate">
-        {panel.title}
+      {/* Компактный заголовок с авто-масштабированием */}
+      <div className="flex-shrink-0 px-2 py-1 border-b border-slate-700 bg-slate-800/50">
+        <h3 className="text-slate-300 font-semibold truncate text-auto-shrink">
+          {panel.title}
+        </h3>
       </div>
-      <div 
-        className="flex-1 min-h-0 min-w-0 overflow-hidden"
-        style={{
-          display: 'flex',
-          flexDirection: 'column',
-        }}
-      >
+
+      {/* Контент панели */}
+      <div className="flex-1 overflow-hidden min-h-0 min-w-0">
         {panel.panel_type === 'chart' && (
-          <div className="flex-1 min-h-0 min-w-0 overflow-hidden">
-            <ChartPanel
-              config={panel.config}
-              serverId={dashboard.zabbix_server_id}
-              updateInterval={updateInterval}
-            />
-          </div>
+          <ChartPanel
+            config={panel.config}
+            serverId={dashboard.zabbix_server_id}
+            updateInterval={updateInterval}
+          />
         )}
+
         {panel.panel_type === 'single_value' && (
-          <div className="flex-1 min-h-0 min-w-0 overflow-hidden">
-            <SingleValuePanel
-              config={panel.config}
-              serverId={dashboard.zabbix_server_id}
-              updateInterval={updateInterval}
-            />
-          </div>
+          <SingleValuePanel
+            config={panel.config}
+            serverId={dashboard.zabbix_server_id}
+            updateInterval={updateInterval}
+          />
         )}
+
         {panel.panel_type === 'text' && (
-          <div className="flex-1 min-h-0 min-w-0 overflow-hidden">
-            <TextPanel config={panel.config} />
-          </div>
+          <TextPanel config={panel.config} />
         )}
+
         {panel.panel_type === 'matrix' && (
-          <div className="flex-1 min-h-0 min-w-0 overflow-hidden">
-            <StatusMatrixPanel
-              config={panel.config}
-              serverId={dashboard.zabbix_server_id}
-              updateInterval={updateInterval}
-            />
-          </div>
+          <StatusMatrixPanel
+            config={panel.config}
+            serverId={dashboard.zabbix_server_id}
+            updateInterval={updateInterval}
+          />
         )}
+
+        {panel.panel_type === 'table' && (
+          <TablePanel
+            config={panel.config}
+            serverId={dashboard.zabbix_server_id}
+            updateInterval={updateInterval}
+          />
+        )}
+
         {panel.panel_type === 'image' && (
-          <div className="flex-1 min-h-0 min-w-0 overflow-hidden flex items-center justify-center">
-            <img
-              src={panel.config.image_url}
-              alt={panel.title}
-              style={{
-                width: panel.config.fit ? '100%' : panel.config.width || 'auto',
-                height: panel.config.fit ? '100%' : panel.config.height || 'auto',
-                objectFit: panel.config.fit ? 'contain' : 'cover',
-                maxWidth: '100%',
-                maxHeight: '100%',
-              }}
-              onError={(e) => {
-                (e.target as HTMLImageElement).src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="200"%3E%3Crect fill="%23334155" width="200" height="200"/%3E%3Ctext fill="%2394a3b8" x="100" y="100" text-anchor="middle" dy=".3em" font-size="14"%3EImage Not Found%3C/text%3E%3C/svg%3E';
-              }}
-            />
-          </div>
+          <img
+            src={panel.config.image_url}
+            alt={panel.title}
+            className="w-full h-full object-contain"
+            onError={(e) => {
+              (e.target as HTMLImageElement).src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="200"%3E%3Crect fill="%23334155" width="200" height="200"/%3E%3Ctext fill="%2394a3b8" x="100" y="100" text-anchor="middle" dy=".3em" font-size="14"%3EImage Not Found%3C/text%3E%3C/svg%3E';
+            }}
+          />
         )}
       </div>
     </div>

@@ -1,5 +1,6 @@
-import { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { proxyApi } from '../api/client';
+import AutoShrinkText from './AutoShrinkText';
 
 interface Props {
   config: {
@@ -25,18 +26,51 @@ interface CellData {
   status: 'ok' | 'warning' | 'critical' | 'unknown';
 }
 
-export default function StatusMatrixPanel({ config, serverId }: Props) {
+type Column = { id: string; name: string };
+
+export default function StatusMatrixPanel({ config, serverId, updateInterval }: Props) {
   const [data, setData] = useState<Record<string, Record<string, CellData>>>({});
   const [loading, setLoading] = useState(false);
-  const [fontSize, setFontSize] = useState(12);
-  const containerRef = useRef<HTMLDivElement>(null);
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     if (!serverId || !config.rows?.length || !config.columns?.length) return;
 
     setLoading(true);
     try {
+      // Собираем все itemId из всех ячеек
+      const allItemIds: string[] = [];
+      config.rows.forEach(row => {
+        row.cells.forEach(cell => {
+          if (cell.itemId) allItemIds.push(cell.itemId);
+        });
+      });
+
+      const uniqueItemIds = [...new Set(allItemIds)];
+
+      if (uniqueItemIds.length === 0) {
+        setData({});
+        setLoading(false);
+        return;
+      }
+
+      // ВАЖНО: limit должен быть больше количества itemids!
+      // Иначе Zabbix вернёт только 1 запись на все itemids.
+      // Берём с запасом (x5), чтобы гарантированно получить последние значения для всех.
+      const fetchLimit = Math.max(100, uniqueItemIds.length * 5);
+      const res = await proxyApi.history(serverId, uniqueItemIds, '1h', fetchLimit);
+
+      // Группируем по itemid. 
+      // Так как Zabbix сортирует по clock DESC, первое вхождение — самое свежее.
+      const valueMap: Record<string, number> = {};
+      res.data.forEach((item: any) => {
+        if (item.itemid && valueMap[item.itemid] === undefined) {
+          valueMap[item.itemid] = parseFloat(item.value);
+        }
+      });
+
+      // Заполняем данные для ячеек
       const newData: Record<string, Record<string, CellData>> = {};
+      const thresholds = config.thresholds || { warn: 0.5, crit: 0 };
 
       for (let rowIndex = 0; rowIndex < config.rows.length; rowIndex++) {
         const row = config.rows[rowIndex];
@@ -45,88 +79,45 @@ export default function StatusMatrixPanel({ config, serverId }: Props) {
 
         for (let colIndex = 0; colIndex < row.cells.length; colIndex++) {
           const cell = row.cells[colIndex];
-          const col = config.columns?.[colIndex];
+          const col: Column | undefined = config.columns?.[colIndex];
+          const colKey = col?.id || `col_${colIndex}`;
           
           const itemId = cell.itemId;
           if (!itemId) {
-            newData[rowKey][col?.id || `col_${colIndex}`] = { value: null, status: 'unknown' };
+            newData[rowKey][colKey] = { value: null, status: 'unknown' };
             continue;
           }
           
-          try {
-            const res = await proxyApi.history(serverId, [itemId], '1h', 1);
+          const value = valueMap[itemId];
+          if (value !== undefined) {
+            let status: CellData['status'] = 'ok';
+            if (value <= thresholds.crit) status = 'critical';
+            else if (value <= thresholds.warn) status = 'warning';
 
-            if (res.data.length > 0) {
-              const value = parseFloat(res.data[res.data.length - 1].value);
-              const thresholds = config.thresholds || { warn: 0.5, crit: 0 };
-              
-              let status: CellData['status'] = 'ok';
-              if (value <= thresholds.crit) status = 'critical';
-              else if (value <= thresholds.warn) status = 'warning';
-
-              newData[rowKey][col?.id || `col_${colIndex}`] = { value, status };
-            } else {
-              newData[rowKey][col?.id || `col_${colIndex}`] = { value: null, status: 'unknown' };
-            }
-          } catch {
-            newData[rowKey][col?.id || `col_${colIndex}`] = { value: null, status: 'unknown' };
+            newData[rowKey][colKey] = { value, status };
+          } else {
+            newData[rowKey][colKey] = { value: null, status: 'unknown' };
           }
         }
       }
 
       setData(newData);
+    } catch (err) {
+      console.error('[StatusMatrix] Ошибка загрузки:', err);
     } finally {
       setLoading(false);
     }
-  };
-
-  // Динамический расчёт размера шрифта на основе реального размера контейнера
-  useEffect(() => {
-    if (!containerRef.current) return;
-
-    const updateFontSize = () => {
-      if (!containerRef.current) return;
-      
-      const width = containerRef.current.clientWidth;
-      const height = containerRef.current.clientHeight;
-      const rowCount = config.rows?.length || 1;
-      const colCount = (config.columns?.length || 0) + 1; // +1 для колонки "Узел"
-      
-      // Рассчитываем размер на основе минимального измерения
-      const cellWidth = width / colCount;
-      const cellHeight = height / (rowCount + 1); // +1 для заголовков
-      const minDimension = Math.min(cellWidth, cellHeight);
-      
-      // Шрифт = 40% от минимального размера ячейки, но не меньше 6px и не больше 14px
-      const calculatedSize = Math.max(6, Math.min(14, minDimension * 0.4));
-      
-      setFontSize(calculatedSize);
-    };
-
-    // Первоначальный расчёт
-    updateFontSize();
-
-    // Отслеживаем изменение размера контейнера
-    const resizeObserver = new ResizeObserver(() => {
-      updateFontSize();
-    });
-
-    resizeObserver.observe(containerRef.current);
-
-    return () => {
-      resizeObserver.disconnect();
-    };
-  }, [config.rows, config.columns]);
+  }, [serverId, config.rows, config.columns, config.thresholds]);
 
   useEffect(() => {
     loadData();
-    const interval = setInterval(loadData, 60000);
+    const interval = setInterval(loadData, (updateInterval || 60) * 1000);
     return () => clearInterval(interval);
-  }, [serverId, config.rows, config.columns]);
+  }, [loadData, updateInterval]);
 
   if (!config.rows?.length || !config.columns?.length) {
     return (
-      <div className="w-full h-full flex items-center justify-center text-slate-400" style={{ fontSize: '14px' }}>
+      <div className="w-full h-full flex items-center justify-center text-slate-400">
         Панель не настроена
       </div>
     );
@@ -143,12 +134,9 @@ export default function StatusMatrixPanel({ config, serverId }: Props) {
   const colCount = config.columns.length;
 
   return (
-    <div 
-      ref={containerRef}
-      className="w-full h-full flex flex-col min-h-0 min-w-0 overflow-hidden"
-    >
+    <div className="w-full h-full flex flex-col min-h-0 min-w-0 overflow-hidden">
       {loading && Object.keys(data).length === 0 && (
-        <div className="flex-1 flex items-center justify-center text-slate-400" style={{ fontSize: `${fontSize}px` }}>
+        <div className="flex-1 flex items-center justify-center text-slate-400">
           Загрузка...
         </div>
       )}
@@ -161,25 +149,19 @@ export default function StatusMatrixPanel({ config, serverId }: Props) {
         }}
       >
         {/* Заголовки */}
-        <div 
-          className="bg-slate-700 flex items-center justify-center text-white font-bold border border-slate-600 min-h-0 overflow-hidden"
-          style={{ 
-            padding: '2px',
-            fontSize: `${fontSize}px`,
-          }}
-        >
-          <span className="truncate">Узел</span>
+        <div className="bg-slate-700 flex items-center justify-center text-white font-bold border border-slate-600 min-h-0 overflow-hidden p-1">
+          <AutoShrinkText align="center" className="text-white font-bold">
+            Узел
+          </AutoShrinkText>
         </div>
         {config.columns.map((col) => (
           <div 
             key={col.id} 
-            className="bg-slate-700 flex items-center justify-center text-white font-bold border border-slate-600 min-h-0 overflow-hidden"
-            style={{ 
-              padding: '2px',
-              fontSize: `${fontSize}px`,
-            }}
+            className="bg-slate-700 flex items-center justify-center text-white font-bold border border-slate-600 min-h-0 overflow-hidden p-1"
           >
-            <span className="truncate text-center">{col.name}</span>
+            <AutoShrinkText align="center" className="text-white font-bold">
+              {col.name}
+            </AutoShrinkText>
           </div>
         ))}
 
@@ -187,20 +169,17 @@ export default function StatusMatrixPanel({ config, serverId }: Props) {
         {config.rows.map((row, rowIndex) => {
           const rowKey = `row_${rowIndex}`;
           return (
-            <>
+            <React.Fragment key={`row-frag-${row.id || rowIndex}`}>
               <div 
-                key={`row-name-${row.id || rowIndex}`}
-                className="bg-slate-800 flex items-center text-white font-medium border border-slate-700 min-h-0 overflow-hidden"
-                style={{ 
-                  padding: '2px',
-                  fontSize: `${fontSize}px`,
-                }}
+                className="bg-slate-800 flex items-center text-white font-medium border border-slate-700 min-h-0 overflow-hidden p-1"
               >
-                <span className="truncate">{row.name}</span>
+                <AutoShrinkText align="left" className="text-white font-medium">
+                  {row.name}
+                </AutoShrinkText>
               </div>
               
               {row.cells.map((cell, cellIndex) => {
-                const col = config.columns?.[cellIndex];
+                const col: Column | undefined = config.columns?.[cellIndex];
                 const colKey = col?.id || `col_${cellIndex}`;
                 const cellData = data[rowKey]?.[colKey];
                 const color = cellData ? statusColors[cellData.status] : statusColors.unknown;
@@ -216,20 +195,21 @@ export default function StatusMatrixPanel({ config, serverId }: Props) {
                       className="w-full h-full flex items-center justify-center rounded text-white font-bold"
                       style={{
                         backgroundColor: color,
-                        fontSize: `${fontSize}px`,
                         aspectRatio: '1',
                         maxWidth: '100%',
                         maxHeight: '100%',
                       }}
                     >
-                      {cellData?.value !== null && cellData?.value !== undefined 
-                        ? cellData.value.toFixed(0) 
-                        : '?'}
+                      <AutoShrinkText align="center" className="text-white font-bold">
+                        {cellData?.value !== null && cellData?.value !== undefined 
+                          ? cellData.value.toFixed(0) 
+                          : '?'}
+                      </AutoShrinkText>
                     </div>
                   </div>
                 );
               })}
-            </>
+            </React.Fragment>
           );
         })}
       </div>
