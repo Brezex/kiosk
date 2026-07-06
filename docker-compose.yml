@@ -5,6 +5,11 @@ services:
       dockerfile: Dockerfile
     container_name: zabbix-kiosk-backend
     restart: unless-stopped
+    # ВАЖНО: Команда должна быть здесь (на уровне с build и ports)
+    # Мы используем "/app/backend" как рабочую папку (из Dockerfile), 
+    # поэтому скрипт create_admin.py должен физически лежать в папке backend
+    command: >
+      sh -c "python create_admin.py && python -m uvicorn app.main:app --host 0.0.0.0 --port 8000"
     ports:
       - "8000:8000"
     volumes:
@@ -37,7 +42,3 @@ services:
 volumes:
   kiosk-data:
     driver: local
-
-    backend:
-  command: >
-    sh -c "python create_admin.py && python -m uvicorn app.main:app --host 0.0.0.0 --port 8000"
