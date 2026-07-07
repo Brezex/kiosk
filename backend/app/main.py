@@ -3,7 +3,7 @@ import json
 import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timezone  # ← ДОБАВЛЕН timezone
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -56,7 +56,7 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# CORS - используем settings из config.py вместо ручного парсинга
+# CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins_list,
@@ -71,7 +71,7 @@ app.add_middleware(
 async def health_check():
     return {
         "status": "healthy",
-        "timestamp": datetime.now(datetime.timezone.utc).isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),  # ← ИСПРАВЛЕНО
         "frontend_dist_exists": FRONTEND_DIST.exists()
     }
 
@@ -97,16 +97,13 @@ def kiosk_state():
     
     db = SessionLocal()
     try:
-        # Только общие дашборды (user_id is NULL) в ротации
-        # Используем selectinload для загрузки panels
         dashboards_list = db.query(Dashboard)\
             .filter(Dashboard.in_rotation == True, Dashboard.user_id == None)\
             .options(selectinload(Dashboard.panels))\
             .order_by(Dashboard.sort_order)\
             .all()
         
-        # Календарные уведомления
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)  # ← ИСПРАВЛЕНО (было datetime.utcnow())
         scheduled = db.query(ScheduledNotification)\
             .filter(
                 ScheduledNotification.is_active == True,
@@ -161,8 +158,6 @@ def kiosk_dashboards():
     
     db = SessionLocal()
     try:
-        # Только общие дашборды
-        # Используем selectinload для загрузки panels
         dashboards_list = db.query(Dashboard)\
             .filter(Dashboard.in_rotation == True, Dashboard.user_id == None)\
             .options(selectinload(Dashboard.panels))\
@@ -221,36 +216,28 @@ def kiosk_notifications():
 if FRONTEND_DIST.exists() and (FRONTEND_DIST / "assets").exists():
     logger.info(f"Serving frontend from {FRONTEND_DIST}")
     
-    # Монтируем статику
     app.mount("/assets", StaticFiles(directory=FRONTEND_DIST / "assets"), name="assets")
     
-    # Корневой маршрут - отдаём index.html
     @app.get("/")
     async def serve_root():
-        """Отдаёт index.html для корневого пути"""
         index_path = FRONTEND_DIST / "index.html"
         if index_path.exists():
             return FileResponse(index_path)
         return {"detail": "Frontend not built"}
     
-    # Все остальные пути - для SPA роутинга
     @app.get("/{full_path:path}")
     async def serve_frontend(full_path: str):
-        """Раздача файлов фронтенда для SPA роутинга"""
-        # Не перехватываем API запросы и docs
         if (full_path.startswith("api/") or 
             full_path.startswith("docs") or 
             full_path.startswith("openapi") or
             full_path.startswith("assets/")):
             return {"detail": "Not found"}
         
-        # Пробуем найти файл
         file_path = FRONTEND_DIST / full_path
         
         if file_path.exists() and file_path.is_file():
             return FileResponse(file_path)
         
-        # Если файл не найден - отдаём index.html (для React Router)
         index_path = FRONTEND_DIST / "index.html"
         if index_path.exists():
             return FileResponse(index_path)
