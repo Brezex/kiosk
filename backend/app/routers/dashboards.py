@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.database import get_async_db
-from app.models import Dashboard, User
+from app.models import Dashboard, User, Panel
 from app.schemas import DashboardCreate, DashboardUpdate, DashboardResponse
 from app.auth import get_current_user, require_admin
 
@@ -21,7 +21,6 @@ async def list_dashboards(
 ):
     """Список дашбордов: общие + личные текущего пользователя."""
     if personal:
-        # Только личные дашборды текущего пользователя
         result = await db.execute(
             select(Dashboard)
             .options(selectinload(Dashboard.panels), selectinload(Dashboard.zabbix_server))
@@ -29,7 +28,6 @@ async def list_dashboards(
             .order_by(Dashboard.sort_order, Dashboard.id)
         )
     else:
-        # Общие (user_id is NULL) + личные текущего пользователя
         result = await db.execute(
             select(Dashboard)
             .options(selectinload(Dashboard.panels), selectinload(Dashboard.zabbix_server))
@@ -53,7 +51,6 @@ async def create_dashboard(
     personal: bool = Query(False, description="Создать личный дашборд"),
 ):
     """Создание дашборда. Если personal=True — личный, иначе общий (только для admin)."""
-    # Если пользователь не admin — всегда создаём личный
     user_id = current_user.id if (personal or current_user.role != "admin") else None
     
     dashboard = Dashboard(
@@ -107,7 +104,6 @@ async def update_dashboard(
     if not dashboard:
         raise HTTPException(status_code=404, detail="Dashboard not found")
     
-    # Проверка прав: только владелец или admin
     if dashboard.user_id is not None and dashboard.user_id != current_user.id and current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Access denied")
     
@@ -132,7 +128,6 @@ async def delete_dashboard(
     if not dashboard:
         raise HTTPException(status_code=404, detail="Dashboard not found")
     
-    # Проверка прав
     if dashboard.user_id is not None and dashboard.user_id != current_user.id and current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Access denied")
     
@@ -162,8 +157,10 @@ async def export_dashboard(
             "name": dashboard.name,
             "description": dashboard.description,
             "rotation_interval": dashboard.rotation_interval,
+            "update_interval": dashboard.update_interval,  # ← ДОБАВЛЕНО
             "in_rotation": dashboard.in_rotation,
             "sort_order": dashboard.sort_order,
+            "zabbix_server_id": dashboard.zabbix_server_id,  # ← ДОБАВЛЕНО (критично!)
             "panels": [
                 {
                     "panel_type": p.panel_type,
@@ -183,24 +180,40 @@ async def import_dashboard(
     payload: dict,
     db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(get_current_user),
+    personal: bool = Query(False, description="Создать как личный дашборд"),
 ):
-    """Импорт дашборда из JSON."""
+    """Импорт дашборда из JSON.
+    
+    Если personal=True — создаётся личный дашборд.
+    Если personal=False и пользователь admin — создаётся общий (user_id=None).
+    """
     if "dashboard" not in payload:
         raise HTTPException(status_code=400, detail="Invalid schema: missing 'dashboard'")
     
     d = payload["dashboard"]
+    
+    # Определяем user_id:
+    # - Если personal=True → личный
+    # - Если пользователь не admin → всегда личный (независимо от personal)
+    # - Если personal=False и admin → общий (user_id=None)
+    if personal or current_user.role != "admin":
+        user_id = current_user.id
+    else:
+        user_id = None
+    
     dashboard = Dashboard(
         name=d.get("name", "Imported"),
         description=d.get("description"),
         rotation_interval=d.get("rotation_interval"),
+        update_interval=d.get("update_interval", 30),  # ← ВОССТАНОВЛЕНО
         in_rotation=d.get("in_rotation", True),
         sort_order=d.get("sort_order", 0),
-        user_id=current_user.id,  # Импортированный дашборд — личный
+        zabbix_server_id=d.get("zabbix_server_id"),  # ← ВОССТАНОВЛЕНО (критично!)
+        user_id=user_id,
     )
     db.add(dashboard)
     await db.flush()
     
-    from app.models import Panel
     for p in d.get("panels", []):
         panel = Panel(
             dashboard_id=dashboard.id,
@@ -213,5 +226,5 @@ async def import_dashboard(
         db.add(panel)
     
     await db.flush()
-    await db.refresh(dashboard, attribute_names=["panels"])
+    await db.refresh(dashboard, attribute_names=["panels", "zabbix_server"])
     return dashboard

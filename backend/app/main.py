@@ -71,7 +71,7 @@ app.add_middleware(
 async def health_check():
     return {
         "status": "healthy",
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(datetime.timezone.utc).isoformat(),
         "frontend_dist_exists": FRONTEND_DIST.exists()
     }
 
